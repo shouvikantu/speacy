@@ -1,5 +1,4 @@
-import { promises as fs } from "fs";
-import path from "path";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type TranscriptLine = {
   role: "student" | "assistant";
@@ -31,20 +30,13 @@ type ReportOutput = {
   confidence: number;
 };
 
-const eventsDir = path.join(process.cwd(), "data", "realtime-events");
-const reportsDir = path.join(process.cwd(), "data", "reports");
+type RealtimeEventRow = {
+  ts: number;
+  direction: "client" | "server";
+  event: any;
+};
 
-const sanitizeSessionId = (input: string) =>
-  input.replace(/[^a-zA-Z0-9_-]/g, "");
-
-const parseJsonLines = (raw: string) =>
-  raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => JSON.parse(line));
-
-const extractTranscript = (entries: Array<{ ts?: number; event?: any }>): TranscriptLine[] => {
+const extractTranscript = (entries: RealtimeEventRow[]): TranscriptLine[] => {
   const transcript: TranscriptLine[] = [];
 
   for (const entry of entries) {
@@ -59,7 +51,10 @@ const extractTranscript = (entries: Array<{ ts?: number; event?: any }>): Transc
       continue;
     }
 
-    if (event.type === "response.output_audio_transcript.done" && typeof event.transcript === "string") {
+    if (
+      event.type === "response.output_audio_transcript.done" &&
+      typeof event.transcript === "string"
+    ) {
       transcript.push({ role: "assistant", text: event.transcript, ts });
       continue;
     }
@@ -126,6 +121,21 @@ const safeParseJson = (text: string): ReportOutput | null => {
   }
 };
 
+const fetchEvents = async (sessionId: string) => {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("realtime_events")
+    .select("ts, direction, event")
+    .eq("session_id", sessionId)
+    .order("ts", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load events: ${error.message}`);
+  }
+
+  return (data ?? []) as RealtimeEventRow[];
+};
+
 export async function generateReport(
   sessionId: string,
   assessment: AssessmentSummary | null,
@@ -136,15 +146,8 @@ export async function generateReport(
     throw new Error("Missing OPENAI_API_KEY");
   }
 
-  const safeId = sanitizeSessionId(sessionId);
-  if (!safeId) {
-    throw new Error("Invalid sessionId");
-  }
-
-  const eventsPath = path.join(eventsDir, `${safeId}.jsonl`);
-  const raw = await fs.readFile(eventsPath, "utf8");
-  const entries = parseJsonLines(raw) as Array<{ ts?: number; event?: any }>;
-  const transcript = extractTranscript(entries);
+  const entries = await fetchEvents(sessionId);
+  const transcript = extractTranscript(entries.filter((row) => row.direction === "server"));
 
   const prompt = `You are an assessment analyst. Based on the transcript of a Socratic tutoring session about Python lists and tuples, create a concise report.
 
@@ -199,18 +202,12 @@ ${assessment ? JSON.stringify(assessment, null, 2) : "(none)"}
       confidence: assessment?.confidence ?? 0.5,
     } satisfies ReportOutput);
 
-  await fs.mkdir(reportsDir, { recursive: true });
-  const reportPayload = {
-    sessionId: safeId,
+  return {
+    sessionId,
     generatedAt: new Date().toISOString(),
     student,
     assessment,
     transcript,
     report,
   };
-
-  const reportPath = path.join(reportsDir, `${safeId}.json`);
-  await fs.writeFile(reportPath, JSON.stringify(reportPayload, null, 2), "utf8");
-
-  return reportPayload;
 }

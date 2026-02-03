@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateReport } from "@/lib/realtimeReport";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type AssessmentSummary = {
   mastery_level: "novice" | "developing" | "competent" | "proficient";
@@ -41,6 +42,25 @@ export async function POST(request: Request) {
       payload.assessment ?? null,
       student
     );
+    const admin = createAdminClient();
+    const studentName = student
+      ? `${student.first_name ?? ""} ${student.last_name ?? ""}`.trim()
+      : "";
+
+    const { error: insertError } = await admin.from("reports").upsert({
+      session_id: report.sessionId,
+      user_id: student?.id ?? null,
+      student_name: studentName,
+      student_email: student?.email ?? "",
+      assessment: report.assessment,
+      transcript: report.transcript,
+      report: report.report,
+      generated_at: report.generatedAt,
+    });
+    if (insertError) {
+      throw new Error(`Failed to save report: ${insertError.message}`);
+    }
+
     return NextResponse.json({ ok: true, report });
   } catch (error) {
     return NextResponse.json(

@@ -1,5 +1,4 @@
-import { promises as fs } from "fs";
-import path from "path";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type ReportSummary = {
   sessionId: string;
@@ -10,40 +9,28 @@ type ReportSummary = {
   confidence: number;
 };
 
-const reportsDir = path.join(process.cwd(), "data", "reports");
-
 const sanitizeSessionId = (input: string) =>
   input.replace(/[^a-zA-Z0-9_-]/g, "");
 
 export async function listReportSummaries(): Promise<ReportSummary[]> {
-  try {
-    const files = await fs.readdir(reportsDir);
-    const summaries: ReportSummary[] = [];
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("reports")
+    .select("session_id, student_name, student_email, generated_at, report")
+    .order("generated_at", { ascending: false });
 
-    for (const file of files) {
-      if (!file.endsWith(".json")) continue;
-      const raw = await fs.readFile(path.join(reportsDir, file), "utf8");
-      const payload = JSON.parse(raw) as any;
-      if (!payload?.sessionId) continue;
-      const firstName = payload.student?.first_name ?? "";
-      const lastName = payload.student?.last_name ?? "";
-      const studentName = `${firstName} ${lastName}`.trim();
-      const studentEmail = payload.student?.email ?? "";
-      summaries.push({
-        sessionId: payload.sessionId,
-        studentName,
-        studentEmail,
-        generatedAt: payload.generatedAt ?? "",
-        mastery_level: payload.report?.mastery_level ?? payload.assessment?.mastery_level ?? "",
-        confidence: payload.report?.confidence ?? payload.assessment?.confidence ?? 0,
-      });
-    }
-
-    summaries.sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
-    return summaries;
-  } catch {
-    return [];
+  if (error) {
+    throw new Error(error.message);
   }
+
+  return (data ?? []).map((row: any) => ({
+    sessionId: row.session_id,
+    studentName: row.student_name ?? "",
+    studentEmail: row.student_email ?? "",
+    generatedAt: row.generated_at ?? "",
+    mastery_level: row.report?.mastery_level ?? "",
+    confidence: row.report?.confidence ?? 0,
+  }));
 }
 
 export async function readReport(sessionId: string) {
@@ -52,7 +39,27 @@ export async function readReport(sessionId: string) {
     throw new Error("Invalid sessionId");
   }
 
-  const reportPath = path.join(reportsDir, `${safeId}.json`);
-  const raw = await fs.readFile(reportPath, "utf8");
-  return JSON.parse(raw) as any;
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("reports")
+    .select("*")
+    .eq("session_id", safeId)
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    sessionId: data.session_id,
+    generatedAt: data.generated_at,
+    student: {
+      first_name: data.student_name?.split(" ")[0] ?? "",
+      last_name: data.student_name?.split(" ").slice(1).join(" ") ?? "",
+      email: data.student_email ?? "",
+    },
+    assessment: data.assessment,
+    transcript: data.transcript,
+    report: data.report,
+  };
 }

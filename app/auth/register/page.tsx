@@ -21,6 +21,7 @@ export default function RegisterPage() {
 
     try {
       const supabase = createClient();
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
       const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -29,7 +30,7 @@ export default function RegisterPage() {
             first_name: firstName,
             last_name: lastName,
           },
-          emailRedirectTo: `${window.location.origin}/auth/confirm`,
+          emailRedirectTo: `${siteUrl}/auth/confirm`,
         },
       });
       if (signUpError) throw signUpError;
