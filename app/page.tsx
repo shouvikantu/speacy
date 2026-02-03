@@ -15,6 +15,11 @@ type RealtimeEvent = {
     type?: string;
     name?: string;
     arguments?: string;
+    role?: string;
+    content?: Array<{
+      type?: string;
+      text?: string;
+    }>;
   };
   response?: {
     output?: Array<{
