@@ -36,34 +36,44 @@ function LoginForm() {
     <section className="card auth-card">
       <h1>Welcome back</h1>
       <p className="lead">Log in to review your sessions and reports.</p>
-      <div className="auth-fields">
-        <input
-          className="input"
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-        />
-        <input
-          className="input"
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-      </div>
-      <div className="controls">
-        <button className="btn primary" onClick={handleLogin} disabled={loading}>
-          Sign in
-        </button>
-        <button
-          className="btn ghost"
-          onClick={() => router.push("/auth/register")}
-          disabled={loading}
-        >
-          Create account
-        </button>
-      </div>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!loading) {
+            void handleLogin();
+          }
+        }}
+      >
+        <div className="auth-fields">
+          <input
+            className="input"
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+          <input
+            className="input"
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </div>
+        <div className="controls">
+          <button className="btn primary" type="submit" disabled={loading}>
+            Sign in
+          </button>
+          <button
+            className="btn ghost"
+            type="button"
+            onClick={() => router.push("/auth/register")}
+            disabled={loading}
+          >
+            Create account
+          </button>
+        </div>
+      </form>
       {error ? <div className="error">{error}</div> : null}
     </section>
   );

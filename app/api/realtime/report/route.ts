@@ -3,17 +3,8 @@ import { generateReport } from "@/lib/realtimeReport";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-type AssessmentSummary = {
-  mastery_level: "novice" | "developing" | "competent" | "proficient";
-  evidence: string[];
-  misconceptions: string[];
-  recommended_next_steps: string[];
-  confidence: number;
-};
-
 type ReportRequest = {
   sessionId?: string;
-  assessment?: AssessmentSummary | null;
 };
 
 export async function POST(request: Request) {
@@ -37,11 +28,7 @@ export async function POST(request: Request) {
         }
       : null;
 
-    const report = await generateReport(
-      payload.sessionId,
-      payload.assessment ?? null,
-      student
-    );
+    const report = await generateReport(payload.sessionId, student);
     const admin = createAdminClient();
     const studentName = student
       ? `${student.first_name ?? ""} ${student.last_name ?? ""}`.trim()
@@ -52,9 +39,8 @@ export async function POST(request: Request) {
       user_id: student?.id ?? null,
       student_name: studentName,
       student_email: student?.email ?? "",
-      assessment: report.assessment,
       transcript: report.transcript,
-      report: report.report,
+      psychometrician: report.psychometrician,
       generated_at: report.generatedAt,
     });
     if (insertError) {

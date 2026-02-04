@@ -181,6 +181,79 @@ h1 {
   box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.15);
 }
 
+.textarea {
+  background: rgba(15, 20, 34, 0.7);
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: var(--ink);
+  min-height: 140px;
+  outline: none;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.textarea:focus {
+  border-color: rgba(94, 234, 212, 0.5);
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.15);
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.helper {
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.notice-inline {
+  color: #d1fae5;
+  font-size: 13px;
+}
+
+.error-inline {
+  color: #fecaca;
+  font-size: 13px;
+}
+
 .btn {
   appearance: none;
   border: none;
@@ -342,6 +415,13 @@ h1 {
   margin-bottom: 8px;
 }
 
+.report-psychometrician {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .report-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -381,6 +461,28 @@ h1 {
   font-size: 12px;
   color: var(--ink-dim);
   margin-top: 2px;
+}
+
+.exam-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.exam-details h3 {
+  margin: 10px 0 6px;
+}
+
+.exam-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.exam-columns ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--ink-dim);
 }
 
 .transcript-panel,
@@ -554,6 +656,10 @@ h1 {
   }
 
   .report-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .exam-columns {
     grid-template-columns: 1fr;
   }
 }

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import ExamSettingsForm from "@/app/dashboard/ExamSettingsForm";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -29,6 +30,8 @@ export default async function DashboardPage() {
           <p className="lead">You are signed in as {data.user.email}</p>
           <p className="lead">Visit the teacher reports at /teacher.</p>
         </div>
+
+        <ExamSettingsForm />
       </section>
     </main>
   );

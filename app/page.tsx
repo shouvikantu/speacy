@@ -40,6 +40,15 @@ type EventDirection = "client" | "server";
 
 type SessionState = "idle" | "connecting" | "active" | "stopped" | "error";
 
+type ExamSummary = {
+  id: string;
+  title: string;
+  learningGoals: string[];
+  questionTopics: string[];
+  hasRubric: boolean;
+  updatedAt: string;
+};
+
 const getTextDelta = (event: RealtimeEvent) => {
   if (event.type === "response.output_text.delta" && typeof event.delta === "string") {
     return event.delta;
@@ -80,7 +89,7 @@ const extractCodeBlock = (text: string) => {
 };
 
 const DEFAULT_CODE_SNIPPET =
-  "# Awaiting the next snippet...\n\nnumbers = [1, 2, 3]\nprint(numbers[0])";
+  "# Awaiting the next snippet...\n\ndef summarize(items):\n    return len(items), items[0]";
 
 export default function Home() {
   const router = useRouter();
@@ -96,6 +105,11 @@ export default function Home() {
   const [reportStatus, setReportStatus] = useState<
     "idle" | "generating" | "ready" | "error"
   >("idle");
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [exam, setExam] = useState<ExamSummary | null>(null);
+  const [examLoading, setExamLoading] = useState(true);
+  const [examError, setExamError] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const reportTriggeredRef = useRef(false);
 
@@ -110,6 +124,29 @@ export default function Home() {
     sessionIdRef.current = initialId;
     setSessionId(initialId);
   }, []);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase.auth.getUser();
+        if (!data.user) {
+          setAuthenticated(false);
+          setAuthChecked(true);
+          router.push(`/auth/login?redirectedFrom=/`);
+          return;
+        }
+        setAuthenticated(true);
+        setAuthChecked(true);
+      } catch {
+        setAuthenticated(false);
+        setAuthChecked(true);
+        router.push(`/auth/login?redirectedFrom=/`);
+      }
+    };
+
+    void checkAuth();
+  }, [router]);
 
   const logEvent = async (direction: EventDirection, event: RealtimeEvent) => {
     const activeSessionId = sessionIdRef.current;
@@ -140,9 +177,32 @@ export default function Home() {
     return true;
   };
 
+  const loadExam = async () => {
+    setExamLoading(true);
+    setExamError(null);
+    try {
+      const res = await fetch("/api/exams/active");
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to load exam");
+      }
+      setExam((data?.exam as ExamSummary | null) ?? null);
+    } catch (err) {
+      setExam(null);
+      setExamError(err instanceof Error ? err.message : "Failed to load exam");
+    } finally {
+      setExamLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!authenticated) return;
+    void loadExam();
+  }, [authenticated]);
+
   const sendCodeUpdate = () => {
     if (!codeSnippet) return;
-    const message = `Updated code snippet:\n\n\`\`\`python\n${codeSnippet}\n\`\`\`\n\nAsk the student to edit the code by adding or changing something related to lists and tuples, then explain the change.`;
+    const message = `Updated code snippet:\n\n\`\`\`python\n${codeSnippet}\n\`\`\`\n\nAsk the student to trace the code line by line and explain the output.`;
     const created = sendClientEvent({
       type: "conversation.item.create",
       item: {
@@ -156,7 +216,7 @@ export default function Home() {
     }
   };
 
-  const triggerReport = async (assessment: Record<string, unknown>) => {
+  const triggerReport = async () => {
     const activeSessionId = sessionIdRef.current;
     if (!activeSessionId || reportTriggeredRef.current) return;
     reportTriggeredRef.current = true;
@@ -166,7 +226,7 @@ export default function Home() {
       await fetch("/api/realtime/report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: activeSessionId, assessment }),
+        body: JSON.stringify({ sessionId: activeSessionId }),
       });
       setReportStatus("ready");
     } catch {
@@ -176,27 +236,24 @@ export default function Home() {
     }
   };
 
-  const parseAssessment = (event: RealtimeEvent) => {
+  const detectSessionComplete = (event: RealtimeEvent) => {
     if (event.type === "response.function_call_arguments.done") {
-      if (event.name === "assessment_complete" && typeof event.arguments === "string") {
-        return event.arguments;
-      }
+      return event.name === "session_complete";
     }
 
     if (event.type === "response.output_item.done") {
-      if (event.item?.type === "function_call" && event.item.name === "assessment_complete") {
-        return event.item.arguments;
-      }
+      return event.item?.type === "function_call" && event.item.name === "session_complete";
     }
 
     if (event.type === "response.done") {
-      const call = event.response?.output?.find(
-        (item) => item.type === "function_call" && item.name === "assessment_complete"
+      return Boolean(
+        event.response?.output?.find(
+          (item) => item.type === "function_call" && item.name === "session_complete"
+        )
       );
-      if (call?.arguments) return call.arguments;
     }
 
-    return null;
+    return false;
   };
 
   const handleServerEvent = (event: RealtimeEvent) => {
@@ -245,19 +302,14 @@ export default function Home() {
       }
     }
 
-    const assessmentArgs = parseAssessment(event);
-    if (assessmentArgs) {
-      try {
-        const parsed = JSON.parse(assessmentArgs) as Record<string, unknown>;
-        void triggerReport(parsed);
-      } catch {
-        // Ignore malformed tool call args.
-      }
+    if (detectSessionComplete(event)) {
+      void triggerReport();
     }
   };
 
   const startSession = async () => {
     if (status === "connecting" || status === "active") return;
+    const mode = exam ? "exam" : "practice";
     const newSessionId = crypto.randomUUID();
     sessionIdRef.current = newSessionId;
     setSessionId(newSessionId);
@@ -272,7 +324,11 @@ export default function Home() {
     reportTriggeredRef.current = false;
 
     try {
-      const tokenResponse = await fetch("/api/realtime/token", { method: "POST" });
+      const tokenResponse = await fetch("/api/realtime/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode, examId: exam?.id ?? null }),
+      });
       if (!tokenResponse.ok) {
         throw new Error("Failed to mint client secret.");
       }
@@ -372,8 +428,13 @@ export default function Home() {
     }
   };
 
+  const sessionMode = exam ? "exam" : "practice";
   const assistantPlaceholder =
-    status === "active" ? "Listening for your response..." : "Start a session to begin.";
+    status === "active"
+      ? "Listening for your response..."
+      : sessionMode === "exam"
+        ? "Start the exam to begin."
+        : "Start a practice exam to begin.";
   const lastLine = assistantLines[assistantLines.length - 1];
   const assistantScript =
     assistantText && assistantText !== lastLine
@@ -385,6 +446,22 @@ export default function Home() {
     if (!container) return;
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }, [assistantScript.length]);
+
+  if (!authChecked) {
+    return (
+      <main className="app">
+        <section className="card">Checking your session...</section>
+      </main>
+    );
+  }
+
+  if (!authenticated) {
+    return (
+      <main className="app">
+        <section className="card">Redirecting to login...</section>
+      </main>
+    );
+  }
 
   return (
     <main className="app">
@@ -411,13 +488,86 @@ export default function Home() {
               students get stuck.
             </p>
 
+            <div className="card exam-card">
+              <div className="panel-header">
+                <div>
+                  <div className="panel-title">
+                    {exam ? "Faculty exam ready" : "Practice exam"}
+                  </div>
+                  <div className="panel-subtitle">
+                    {exam
+                      ? "This exam uses the learning goals and topics set by your instructor."
+                      : "No faculty exam is set. Practice with the default assessment."}
+                  </div>
+                </div>
+                <button className="btn ghost" onClick={loadExam} disabled={examLoading}>
+                  Refresh
+                </button>
+              </div>
+
+              {examLoading ? (
+                <p className="muted">Loading exam settings...</p>
+              ) : exam ? (
+                <div className="exam-details">
+                  <div className="pill-row">
+                    <span className="pill">exam</span>
+                    {exam.updatedAt ? (
+                      <span className="pill mono">
+                        updated {new Date(exam.updatedAt).toLocaleDateString()}
+                      </span>
+                    ) : null}
+                  </div>
+                  <h3>{exam.title || "Untitled exam"}</h3>
+                  <div className="exam-columns">
+                    <div>
+                      <h4>Learning goals</h4>
+                      <ul>
+                        {exam.learningGoals.length ? (
+                          exam.learningGoals.map((goal, index) => (
+                            <li key={`goal-${index}`}>{goal}</li>
+                          ))
+                        ) : (
+                          <li>No learning goals listed yet.</li>
+                        )}
+                      </ul>
+                    </div>
+                    <div>
+                      <h4>Question topics</h4>
+                      <ul>
+                        {exam.questionTopics.length ? (
+                          exam.questionTopics.map((topic, index) => (
+                            <li key={`topic-${index}`}>{topic}</li>
+                          ))
+                        ) : (
+                          <li>No topics listed yet.</li>
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+                  <p className="muted">
+                    {exam.hasRubric
+                      ? "Rubric provided by faculty."
+                      : "Rubric will be generated automatically before you start."}
+                  </p>
+                </div>
+              ) : (
+                <p className="muted">
+                  No active faculty exam yet. You can start a practice exam instead.
+                </p>
+              )}
+
+              {examError ? <div className="error">{examError}</div> : null}
+            </div>
+
             <div className="controls">
               <button
                 className="btn primary"
                 onClick={startSession}
-                disabled={!sessionId || status === "connecting" || status === "active"}
+                disabled={
+                  !sessionId || examLoading || status === "connecting" || status === "active"
+                }
               >
-                Start session
+                {sessionMode === "exam" ? "Start exam" : "Start practice exam"}
               </button>
               <button
                 className="btn ghost"

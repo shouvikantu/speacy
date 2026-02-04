@@ -19,8 +19,7 @@ type ReportPayload = {
     last_name?: string;
     email?: string;
   };
-  assessment?: any;
-  report?: any;
+  psychometrician?: any;
   transcript?: Array<{ role: string; text: string; ts: number }>;
 };
 
@@ -237,34 +236,87 @@ export default function TeacherDashboard() {
                   <span className="pill mono">{selectedReport.sessionId}</span>
                   <span className="pill">{formatDate(selectedReport.generatedAt)}</span>
                 </div>
-                <h3>Summary</h3>
-                <p>{selectedReport.report?.summary ?? "No summary."}</p>
-                <div className="report-columns">
-                  <div>
-                    <h4>Strengths</h4>
+                {selectedReport.psychometrician ? (
+                  <div className="report-psychometrician">
+                    <h3>Psychometrician evaluation</h3>
+                    <p>{selectedReport.psychometrician?.overall?.summary ?? "No summary."}</p>
+                    <div className="report-columns">
+                      <div>
+                        <h4>Strengths</h4>
+                        <ul>
+                          {(selectedReport.psychometrician?.overall?.strengths ?? []).map(
+                            (item: string, index: number) => (
+                              <li key={`ps-${index}`}>{item}</li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                      <div>
+                        <h4>Gaps</h4>
+                        <ul>
+                          {(selectedReport.psychometrician?.overall?.gaps ?? []).map(
+                            (item: string, index: number) => (
+                              <li key={`pg-${index}`}>{item}</li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+                    <h4>Next steps</h4>
                     <ul>
-                      {(selectedReport.report?.strengths ?? []).map((item: string, index: number) => (
-                        <li key={`s-${index}`}>{item}</li>
-                      ))}
+                      {(selectedReport.psychometrician?.overall?.next_steps ?? []).map(
+                        (item: string, index: number) => (
+                          <li key={`pn-${index}`}>{item}</li>
+                        )
+                      )}
                     </ul>
+
+                    <div className="report-columns">
+                      <div>
+                        <h4>Denoised claims</h4>
+                        <ul>
+                          {(selectedReport.psychometrician?.denoised_transcript?.claims ?? []).map(
+                            (item: string, index: number) => (
+                              <li key={`c-${index}`}>{item}</li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                      <div>
+                        <h4>Code traces</h4>
+                        <ul>
+                          {(
+                            selectedReport.psychometrician?.denoised_transcript?.code_traces ?? []
+                          ).map((item: string, index: number) => (
+                            <li key={`t-${index}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+
+                    <h4>Goal alignment</h4>
+                    <div className="report-list">
+                      {(selectedReport.psychometrician?.goal_alignment ?? []).map(
+                        (item: any, index: number) => (
+                          <div key={`g-${index}`} className="report-item">
+                            <div>
+                              <div>{item.goal}</div>
+                              <div className="muted">{item.notes}</div>
+                              <div className="muted">
+                                Evidence: {(item.evidence ?? []).join("; ") || "None"}
+                              </div>
+                            </div>
+                            <div className="pill mono">
+                              {item.score ?? 0}/4 ({Math.round((item.confidence ?? 0) * 100)}%)
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <h4>Gaps</h4>
-                    <ul>
-                      {(selectedReport.report?.gaps ?? []).map((item: string, index: number) => (
-                        <li key={`g-${index}`}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-                <h4>Recommended next steps</h4>
-                <ul>
-                  {(selectedReport.report?.recommended_next_steps ?? []).map(
-                    (item: string, index: number) => (
-                      <li key={`n-${index}`}>{item}</li>
-                    )
-                  )}
-                </ul>
+                ) : (
+                  <p>No psychometrician evaluation available.</p>
+                )}
               </div>
             ) : (
               <p>Select a report to view details.</p>
