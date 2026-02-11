@@ -31,19 +31,25 @@ export async function signup(formData: FormData) {
 
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
+    const fullName = formData.get("full_name") as string;
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
     const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-            emailRedirectTo: `http://localhost:3000/auth/callback`, // hardcoded for now, should be env var in prod
+            emailRedirectTo: `${origin}/auth/callback`,
+            data: {
+                full_name: fullName,
+            }
         },
     });
 
     if (error) {
+        console.error("Signup error:", error);
         redirect("/error");
     }
 
     revalidatePath("/", "layout");
-    redirect("/dashboard");
+    redirect("/verify-email");
 }
