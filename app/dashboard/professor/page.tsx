@@ -128,7 +128,7 @@ export default async function ProfessorDashboard() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Left: Assignments List */}
-                    <div className="lg:col-span-2 flex flex-col gap-6">
+                    <div className="flex flex-col gap-6">
                         <div className="flex items-center justify-between">
                             <h2 className="text-xl font-bold flex items-center gap-2">
                                 <BookOpen size={20} className="text-purple-400" />
@@ -163,7 +163,7 @@ export default async function ProfessorDashboard() {
                     </div>
 
                     {/* Right: Create Assignment Form */}
-                    <div className="flex flex-col gap-6">
+                    <div className="lg:col-span-2 flex flex-col gap-6">
                         <h2 className="text-xl font-bold flex items-center gap-2">
                             <Plus size={20} className="text-green-400" />
                             Create New Exam

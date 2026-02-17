@@ -82,7 +82,7 @@ export default function ExamCreationForm() {
                     name="title"
                     value={formData.title}
                     onChange={handleChange}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-6 py-4 text-lg text-white focus:outline-none focus:border-purple-500"
                     placeholder="e.g. Midterm Simulation"
                     required
                 />
@@ -96,7 +96,7 @@ export default function ExamCreationForm() {
                         name="topic"
                         value={formData.topic}
                         onChange={handleChange}
-                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                        className="w-full bg-black/40 border border-white/10 rounded-lg px-6 py-4 text-white focus:outline-none focus:border-purple-500"
                         placeholder="e.g. Dynamic Programming"
                         required
                     />
@@ -107,7 +107,7 @@ export default function ExamCreationForm() {
                         name="difficulty_level"
                         value={formData.difficulty_level}
                         onChange={handleChange}
-                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                        className="w-full bg-black/40 border border-white/10 rounded-lg px-6 py-4 text-white focus:outline-none focus:border-purple-500"
                     >
                         <option value="Beginner">Beginner</option>
                         <option value="Intermediate">Intermediate</option>
@@ -122,7 +122,7 @@ export default function ExamCreationForm() {
                     name="description"
                     value={formData.description}
                     onChange={handleChange}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500 h-20"
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-6 py-4 text-white focus:outline-none focus:border-purple-500 h-48 text-lg"
                     placeholder="Brief description for students..."
                 />
             </div>
@@ -135,7 +135,7 @@ export default function ExamCreationForm() {
                             type="text"
                             value={goal}
                             onChange={(e) => handleGoalChange(idx, e.target.value)}
-                            className="flex-1 bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
+                            className="flex-1 bg-black/40 border border-white/10 rounded-lg px-6 py-4 text-white text-base focus:outline-none focus:border-purple-500"
                             placeholder={`Goal ${idx + 1}`}
                         />
                     </div>
