@@ -1,9 +1,9 @@
-
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { Mic, Code, TrendingUp, History, Award, Calendar, ArrowRight, Zap } from "lucide-react";
 import Link from "next/link";
 import LogoutButton from "@/components/LogoutButton";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default async function DashboardPage() {
     const supabase = await createClient();
@@ -51,108 +51,109 @@ export default async function DashboardPage() {
     const latestTopic = assessments && assessments.length > 0 ? assessments[0].topic : "None yet";
 
     return (
-        <div className="flex min-h-screen flex-col p-6 bg-black text-zinc-100 relative overflow-hidden font-sans">
-            {/* Background Decor */}
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-                <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-primary/10 blur-[100px] animate-float" />
-                <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-blue-600/10 blur-[100px] animate-float" style={{ animationDelay: "2s" }} />
-                <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-[0.03] z-0" />
-            </div>
-
-            <main className="flex-1 w-full max-w-6xl mx-auto z-10 flex flex-col gap-8">
+        <div className="flex min-h-screen flex-col p-6 bg-background text-foreground relative font-sans transition-colors duration-300">
+            <main className="flex-1 w-full max-w-6xl mx-auto z-10 flex flex-col gap-10 mt-4">
                 {/* Header Section */}
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 py-8 relative z-50">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 py-6 border-b border-border/50">
                     <div>
-                        <h1 className="text-4xl md:text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white via-zinc-200 to-zinc-400 tracking-tight mb-2">
+                        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-2 text-foreground">
                             Dashboard
                         </h1>
-                        <p className="text-zinc-400 font-light">
-                            Welcome back, <span className="text-zinc-100 font-medium">{user.email}</span>. You're making progress!
+                        <p className="text-muted-foreground font-medium">
+                            Welcome back, <span className="text-foreground">{user.email}</span>
                         </p>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <div className="px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md flex items-center gap-2 text-sm font-mono text-zinc-300">
-                            <Zap size={14} className="text-yellow-500 fill-yellow-500" />
-                            <span>Level 1</span>
+                    <div className="flex items-center gap-4">
+                        <div className="px-4 py-2 rounded-full bg-muted border border-border flex items-center gap-2 text-sm font-semibold text-muted-foreground shadow-sm">
+                            <Zap size={14} className="text-foreground" />
+                            <span className="text-foreground">Level 1</span>
                         </div>
-                        <LogoutButton className="bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/20" />
+                        <div className="bg-background border border-border/50 shadow-sm p-1 rounded-full flex items-center justify-center">
+                            <ThemeToggle />
+                        </div>
+                        <LogoutButton className="bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20 font-semibold rounded-full" />
                     </div>
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="p-6 rounded-2xl bg-zinc-900/50 border border-white/5 backdrop-blur-sm relative overflow-hidden group">
-                        <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <TrendingUp size={80} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="premium-card p-6 flex flex-col relative overflow-hidden group">
+                        <div className="text-muted-foreground mb-4 group-hover:text-primary transition-colors">
+                            <TrendingUp size={24} />
                         </div>
-                        <div className="relative z-10">
-                            <p className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-1">Avg Score</p>
-                            <h3 className="text-4xl font-bold text-white">{averageScore}%</h3>
-                            <div className="mt-2 text-xs text-green-400 flex items-center gap-1">
-                                <TrendingUp size={12} />
+                        <div className="mt-auto relative z-10">
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Avg Score</p>
+                            <h3 className="text-4xl font-extrabold text-foreground tracking-tight">{averageScore}%</h3>
+                            <div className="mt-3 text-sm text-muted-foreground flex items-center gap-1.5 font-medium">
                                 <span>Based on {completedAssessments.length} exams</span>
                             </div>
                         </div>
                     </div>
 
-                    <div className="p-6 rounded-2xl bg-zinc-900/50 border border-white/5 backdrop-blur-sm relative overflow-hidden group">
-                        <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <History size={80} />
+                    <div className="premium-card p-6 flex flex-col relative overflow-hidden group">
+                        <div className="text-muted-foreground mb-4 group-hover:text-primary transition-colors">
+                            <History size={24} />
                         </div>
-                        <div className="relative z-10">
-                            <p className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-1">Total Exams</p>
-                            <h3 className="text-4xl font-bold text-white">{totalAssessments}</h3>
-                            <div className="mt-2 text-xs text-zinc-400 flex items-center gap-1">
+                        <div className="mt-auto relative z-10">
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Total Exams</p>
+                            <h3 className="text-4xl font-extrabold text-foreground tracking-tight">{totalAssessments}</h3>
+                            <div className="mt-3 text-sm text-muted-foreground flex items-center gap-1.5 font-medium truncate">
                                 <span>Latest: {latestTopic}</span>
                             </div>
                         </div>
                     </div>
 
-                    <Link href="/assessment" className="p-6 rounded-2xl bg-gradient-to-br from-primary/20 to-blue-600/20 border border-primary/20 backdrop-blur-sm relative overflow-hidden group hover:border-primary/40 transition-all cursor-pointer flex flex-col justify-center items-center text-center">
-                        <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/30 mb-3 group-hover:scale-110 transition-transform">
+                    <Link href="/assessment" className="premium-card bg-gradient-to-br from-primary to-indigo-600 text-white p-6 shadow-md shadow-primary/20 group hover:-translate-y-1 hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between items-start border-none">
+                        <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white mb-6 group-hover:scale-110 transition-transform">
                             <Mic size={24} />
                         </div>
-                        <h3 className="text-xl font-bold text-white">Start New Exam</h3>
-                        <p className="text-sm text-zinc-400 mt-1">Test your knowledge now</p>
+                        <div>
+                            <h3 className="text-2xl font-bold tracking-tight">Start New Exam</h3>
+                            <p className="text-sm font-medium text-white/80 mt-1">Test your knowledge now</p>
+                        </div>
                     </Link>
                 </div>
 
                 {/* Main Content Split */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
                     {/* Left Column: Recent History & Assignments */}
-                    <div className="lg:col-span-2 flex flex-col gap-8">
+                    <div className="lg:col-span-2 flex flex-col gap-10">
 
-                        {/* NEW: Available Assignments */}
+                        {/* Available Assignments */}
                         <div className="flex flex-col gap-4">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-xl font-bold flex items-center gap-2">
-                                    <Award size={20} className="text-purple-400" />
+                            <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                                <h2 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight">
+                                    <Award size={20} className="text-primary" />
                                     Available Assignments
                                 </h2>
                             </div>
-                            <div className="rounded-2xl border border-white/5 bg-zinc-900/30 overflow-hidden backdrop-blur-sm">
+                            <div className="premium-card overflow-hidden">
                                 {availableAssignments && availableAssignments.length > 0 ? (
-                                    <div className="divide-y divide-white/5">
+                                    <div className="divide-y divide-border/50">
                                         {availableAssignments.map((assignment) => (
-                                            <div key={assignment.id} className="p-5 flex items-center justify-between hover:bg-white/5 transition-colors group">
-                                                <div>
-                                                    <h4 className="font-bold text-white text-lg group-hover:text-purple-300 transition-colors">{assignment.title}</h4>
-                                                    <p className="text-sm text-zinc-400">{assignment.topic} • {assignment.difficulty_level}</p>
-                                                    <p className="text-xs text-zinc-500 mt-1 line-clamp-1">{assignment.description}</p>
+                                            <div key={assignment.id} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-muted/30 transition-colors group gap-4 sm:gap-0">
+                                                <div className="pr-6">
+                                                    <h4 className="font-bold text-foreground text-lg tracking-tight mb-1 group-hover:text-primary transition-colors">{assignment.title}</h4>
+                                                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
+                                                        <span className="bg-muted px-2 py-0.5 rounded text-foreground">{assignment.topic}</span>
+                                                        <span className="w-1 h-1 rounded-full bg-border" />
+                                                        <span>{assignment.difficulty_level}</span>
+                                                    </div>
+                                                    <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">{assignment.description}</p>
                                                 </div>
                                                 <Link
                                                     href={`/assessment?assignmentId=${assignment.id}`}
-                                                    className="px-4 py-2 rounded-lg bg-white/10 hover:bg-purple-600 text-sm font-bold text-white transition-all flex items-center gap-2"
+                                                    className="px-5 py-2.5 rounded-full shadow-sm bg-primary text-white font-semibold hover:bg-indigo-600 transition-colors flex items-center justify-center sm:justify-start gap-2 whitespace-nowrap active:scale-95"
                                                 >
-                                                    Start <ArrowRight size={14} />
+                                                    Start <ArrowRight size={16} />
                                                 </Link>
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="p-12 text-center text-zinc-500">
-                                        <p>No assignments available at the moment.</p>
-                                        <p className="text-xs mt-2">Check back later or start a random practice exam.</p>
+                                    <div className="p-12 text-center text-muted-foreground">
+                                        <p className="font-medium text-foreground">No assignments available at the moment.</p>
+                                        <p className="text-sm mt-2">Check back later or start a random practice exam.</p>
                                     </div>
                                 )}
                             </div>
@@ -160,95 +161,103 @@ export default async function DashboardPage() {
 
                         {/* Recent History */}
                         <div className="flex flex-col gap-4">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-xl font-bold flex items-center gap-2">
+                            <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                                <h2 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight">
                                     <History size={20} className="text-primary" />
                                     Recent History
                                 </h2>
                             </div>
 
-                            <div className="rounded-2xl border border-white/5 bg-zinc-900/30 overflow-hidden backdrop-blur-sm">
+                            <div className="premium-card overflow-hidden">
                                 {assessments && assessments.length > 0 ? (
-                                    <div className="divide-y divide-white/5">
+                                    <div className="divide-y divide-border/50">
                                         {assessments.map((assessment) => (
                                             <Link
                                                 href={`/results/${assessment.id}`}
                                                 key={assessment.id}
-                                                className="flex items-center justify-between p-4 hover:bg-white/5 transition-colors group"
+                                                className="flex items-center justify-between p-5 hover:bg-muted/30 transition-colors group"
                                             >
-                                                <div className="flex items-center gap-4">
-                                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm
+                                                <div className="flex items-center gap-5">
+                                                    <div className={`col-span-1 w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg border relative overflow-hidden
                                                         ${assessment.status === 'graded'
-                                                            ? (assessment.total_score >= 80 ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400')
-                                                            : 'bg-zinc-700/50 text-zinc-400'
+                                                            ? (assessment.total_score >= 80 ? 'bg-green-500/10 text-green-700 border-green-500/20 dark:text-green-400' : 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20 dark:text-yellow-400')
+                                                            : 'bg-muted text-foreground border-border'
                                                         }`}
                                                     >
                                                         {assessment.total_score || '-'}
                                                     </div>
                                                     <div>
-                                                        <h4 className="font-semibold text-zinc-200 group-hover:text-white transition-colors">
+                                                        <h4 className="font-bold text-foreground tracking-tight mb-1 group-hover:text-primary transition-colors">
                                                             {assessment.topic}
                                                         </h4>
-                                                        <div className="flex items-center gap-2 text-xs text-zinc-500">
-                                                            <Calendar size={12} />
-                                                            <span>{new Date(assessment.created_at).toLocaleDateString()}</span>
-                                                            <span className="w-1 h-1 rounded-full bg-zinc-700" />
-                                                            <span className="capitalize">{assessment.status}</span>
+                                                        <div className="flex items-center gap-3 text-[13px] font-medium text-muted-foreground">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Calendar size={14} />
+                                                                <span>{new Date(assessment.created_at).toLocaleDateString()}</span>
+                                                            </div>
+                                                            <span className="w-1 h-1 rounded-full bg-border" />
+                                                            <span className="capitalize px-1.5 py-0.5 rounded bg-muted text-[11px] font-bold tracking-wider">{assessment.status}</span>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <ArrowRight size={16} className="text-zinc-600 group-hover:text-primary transition-colors opacity-0 group-hover:opacity-100" />
+                                                <ArrowRight size={20} className="text-muted-foreground group-hover:text-primary transition-colors mr-2" />
                                             </Link>
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="p-12 text-center text-zinc-500">
-                                        <p>No assessments yet. Start one above!</p>
+                                    <div className="p-12 text-center text-muted-foreground">
+                                        <p className="font-medium">No assessments yet. Start one above!</p>
                                     </div>
                                 )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Right Column: Suggested Actions (Placeholder) */}
-                    <div className="flex flex-col gap-4">
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <Award size={20} className="text-yellow-500" />
-                            Achievements
-                        </h2>
+                    {/* Right Column: Suggested Actions */}
+                    <div className="flex flex-col gap-6">
+                        <div className="flex flex-col gap-4">
+                            <h2 className="text-xl font-bold flex items-center gap-2 tracking-tight text-foreground pb-2 border-b border-border/50">
+                                <Award size={20} className="text-primary" />
+                                Achievements
+                            </h2>
 
-                        <div className="rounded-2xl border border-white/5 bg-zinc-900/30 p-4 flex flex-col gap-3">
-                            <div className="flex items-center gap-3 p-2 rounded-lg bg-white/5 border border-white/5">
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-black font-bold text-xs">
-                                    1st
+                            <div className="premium-card p-5 flex flex-col gap-4">
+                                <div className="flex items-center gap-4 p-3 rounded-xl bg-background border border-border shadow-sm">
+                                    <div className="w-10 h-10 rounded-full bg-foreground flex items-center justify-center text-background font-bold text-sm shadow-md">
+                                        1st
+                                    </div>
+                                    <div className="flex-1">
+                                        <h5 className="font-bold text-foreground tracking-tight">First Steps</h5>
+                                        <p className="text-[13px] text-muted-foreground font-medium mt-0.5">Complete your first exam</p>
+                                    </div>
+                                    {completedAssessments.length > 0 ? (
+                                        <span className="font-bold text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">Done</span>
+                                    ) : (
+                                        <span className="text-muted-foreground font-medium text-xs bg-muted px-2 py-1 rounded-full">Locked</span>
+                                    )}
                                 </div>
-                                <div className="flex-1">
-                                    <h5 className="text-sm font-bold text-zinc-200">First Steps</h5>
-                                    <p className="text-xs text-zinc-500">Complete your first exam</p>
-                                </div>
-                                {completedAssessments.length > 0 ? (
-                                    <span className="text-green-500 text-xs font-bold">Done</span>
-                                ) : (
-                                    <span className="text-zinc-600 text-xs">Locked</span>
-                                )}
-                            </div>
 
-                            <div className="flex items-center gap-3 p-2 rounded-lg bg-white/5 border border-white/5 opacity-50">
-                                <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 font-bold text-xs">
-                                    <Code size={14} />
+                                <div className="flex items-center gap-4 p-3 rounded-xl bg-background border border-border shadow-sm opacity-60 grayscale filter">
+                                    <div className="w-10 h-10 rounded-full bg-muted border border-border flex items-center justify-center text-muted-foreground">
+                                        <Code size={18} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h5 className="font-bold text-foreground tracking-tight">Code Master</h5>
+                                        <p className="text-[13px] text-muted-foreground font-medium mt-0.5">Score 90% on SQL</p>
+                                    </div>
+                                    <span className="text-muted-foreground font-medium text-xs bg-muted px-2 py-1 rounded-full">Locked</span>
                                 </div>
-                                <div className="flex-1">
-                                    <h5 className="text-sm font-bold text-zinc-200">Code Master</h5>
-                                    <p className="text-xs text-zinc-500">Score 90% on SQL</p>
-                                </div>
-                                <span className="text-zinc-600 text-xs">Locked</span>
                             </div>
                         </div>
 
-                        <div className="mt-4 p-4 rounded-2xl bg-gradient-to-br from-purple-900/20 to-indigo-900/20 border border-purple-500/20">
-                            <h4 className="font-bold text-purple-200 mb-1">Pro Tip</h4>
-                            <p className="text-sm text-purple-300/80 leading-relaxed">
-                                Speaking clearly and using technical terminology increases your score significantly. Try to elaborate on "Why" not just "How".
+                        <div className="mt-2 p-6 rounded-2xl bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 shadow-sm relative overflow-hidden group">
+                            {/* Decorative glow */}
+                            <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500/20 rounded-full blur-2xl group-hover:bg-indigo-500/30 transition-colors pointer-events-none" />
+                            <h4 className="font-bold tracking-tight text-indigo-700 dark:text-indigo-400 mb-2 flex items-center gap-2 relative z-10">
+                                <TrendingUp size={16} /> Pro Tip
+                            </h4>
+                            <p className="text-[13px] text-muted-foreground leading-relaxed font-medium relative z-10">
+                                Speaking clearly and using technical terminology increases your score significantly. Try to elaborate on the "Why" and not just the "How".
                             </p>
                         </div>
                     </div>

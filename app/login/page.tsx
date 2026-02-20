@@ -2,109 +2,147 @@
 
 import { useState } from "react";
 import { login, signup } from "./actions";
-import { Zap } from "lucide-react";
+import { Zap, Mail, KeyRound } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import Link from "next/link";
 
 export default function LoginPage() {
     const [isLogin, setIsLogin] = useState(true);
 
     return (
-        <div className="flex h-screen items-center justify-center relative overflow-hidden bg-black font-sans">
-            {/* Dynamic Background */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background to-background z-0" />
-            <div className="absolute top-0 left-0 w-full h-full bg-[url('/grid.svg')] opacity-20 z-0 pointer-events-none" />
+        <div className="flex min-h-screen items-center justify-center font-sans bg-background relative overflow-hidden transition-colors duration-300">
+            {/* Subtle Background Mesh */}
+            <div className="absolute top-0 inset-x-0 h-full bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none z-0" />
+            <div className="absolute top-[20%] right-[-10%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[120px] pointer-events-none z-0 opacity-50 dark:opacity-20" />
+            <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-indigo-500/20 rounded-full blur-[120px] pointer-events-none z-0 opacity-50 dark:opacity-20" />
 
-            <div className="w-full max-w-md rounded-2xl glass-panel p-1 shadow-2xl relative z-10 backdrop-blur-xl border border-white/10 flex flex-col">
-
-                {/* Toggle Tabs */}
-                <div className="grid grid-cols-2 p-1 gap-1 bg-black/40 rounded-t-2xl">
-                    <button
-                        onClick={() => setIsLogin(true)}
-                        className={`py-3 text-sm font-bold rounded-xl transition-all ${isLogin ? "bg-white/10 text-white shadow-lg" : "text-zinc-500 hover:text-zinc-300"}`}
-                    >
-                        Log In
-                    </button>
-                    <button
-                        onClick={() => setIsLogin(false)}
-                        className={`py-3 text-sm font-bold rounded-xl transition-all ${!isLogin ? "bg-white/10 text-white shadow-lg" : "text-zinc-500 hover:text-zinc-300"}`}
-                    >
-                        Sign Up
-                    </button>
+            {/* Top Navigation */}
+            <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-center z-20">
+                <Link href="/" className="text-xl font-extrabold tracking-tight text-foreground hover:opacity-80 transition-opacity">
+                    speacy
+                </Link>
+                <div className="bg-background/80 backdrop-blur-sm rounded-full border border-border/50 shadow-sm p-1">
+                    <ThemeToggle />
                 </div>
+            </div>
 
-                <form className="p-8 flex flex-col gap-6">
-                    <div className="text-center mb-2">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-blue-600 mx-auto flex items-center justify-center shadow-lg shadow-primary/20 mb-4">
-                            <Zap size={24} className="text-white fill-white" />
-                        </div>
-                        <h2 className="text-2xl font-black text-white">
-                            {isLogin ? "Welcome Back" : "Create Account"}
-                        </h2>
-                        <p className="text-sm text-zinc-400 mt-1">
-                            {isLogin ? "Enter your credentials to access your account" : "Start your journey with Speacy today"}
-                        </p>
-                    </div>
+            <div className="w-full max-w-[420px] px-6 relative z-10 animate-fade-in-up">
+                {/* The Premium Auth Card */}
+                <div className="premium-card relative overflow-hidden group">
 
-                    <div className="space-y-4">
-                        {!isLogin && (
-                            <div>
-                                <label htmlFor="full_name" className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5 ml-1">
-                                    Full Name
-                                </label>
-                                <input
-                                    id="full_name"
-                                    name="full_name"
-                                    type="text"
-                                    required={!isLogin}
-                                    className="w-full rounded-xl bg-zinc-900/50 border border-white/10 px-4 py-3 text-white placeholder-zinc-600 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all"
-                                    placeholder="John Doe"
-                                />
+                    {/* Decorative Top Line */}
+                    <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-primary to-indigo-400 opacity-80" />
+
+                    <div className="p-8 md:p-10 flex flex-col gap-8">
+
+                        <div className="text-center">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-indigo-600 mx-auto flex items-center justify-center mb-6 shadow-md shadow-primary/20">
+                                <Zap size={24} className="text-white fill-white" />
                             </div>
-                        )}
-
-                        <div>
-                            <label htmlFor="email" className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5 ml-1">
-                                Email Address
-                            </label>
-                            <input
-                                id="email"
-                                name="email"
-                                type="email"
-                                required
-                                className="w-full rounded-xl bg-zinc-900/50 border border-white/10 px-4 py-3 text-white placeholder-zinc-600 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all"
-                                placeholder="student@university.edu"
-                            />
+                            <h1 className="text-2xl font-extrabold tracking-tight text-foreground mb-2">
+                                {isLogin ? "Welcome Back" : "Create an Account"}
+                            </h1>
+                            <p className="text-sm text-muted-foreground font-medium">
+                                {isLogin ? "Enter your details to access your dashboard." : "Start your journey with Speacy today."}
+                            </p>
                         </div>
 
-                        <div>
-                            <label htmlFor="password" className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5 ml-1">
-                                Password
-                            </label>
-                            <input
-                                id="password"
-                                name="password"
-                                type="password"
-                                required
-                                className="w-full rounded-xl bg-zinc-900/50 border border-white/10 px-4 py-3 text-white placeholder-zinc-600 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all"
-                                placeholder="••••••••"
-                            />
+                        {/* Segmented Control for Login/Signup */}
+                        <div className="bg-muted p-1 rounded-lg flex relative">
+                            <button
+                                onClick={() => setIsLogin(true)}
+                                className={`flex-1 py-1.5 text-sm font-semibold rounded-md transition-all z-10 ${isLogin
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                            >
+                                Log In
+                            </button>
+                            <button
+                                onClick={() => setIsLogin(false)}
+                                className={`flex-1 py-1.5 text-sm font-semibold rounded-md transition-all z-10 ${!isLogin
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                            >
+                                Sign Up
+                            </button>
                         </div>
-                    </div>
 
-                    <div className="mt-2">
-                        <button
-                            formAction={isLogin ? login : signup}
-                            className="w-full rounded-xl bg-gradient-to-r from-primary to-blue-600 px-4 py-3.5 text-white font-bold hover:opacity-90 transition-all shadow-lg shadow-primary/25 active:scale-[0.98]"
-                        >
-                            {isLogin ? "Log In" : "Create Account"}
-                        </button>
-                    </div>
+                        <form className="flex flex-col gap-5">
+                            <div className="space-y-4">
+                                {!isLogin && (
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="full_name" className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest ml-1">
+                                            Full Name
+                                        </label>
+                                        <input
+                                            id="full_name"
+                                            name="full_name"
+                                            type="text"
+                                            required={!isLogin}
+                                            className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium shadow-sm"
+                                            placeholder="John Doe"
+                                        />
+                                    </div>
+                                )}
 
-                    {!isLogin && (
-                        <p className="text-center text-xs text-zinc-500 px-4">
-                            By signing up, you agree to confirm your email address before accessing the dashboard.
-                        </p>
-                    )}
-                </form>
+                                <div className="space-y-1.5">
+                                    <label htmlFor="email" className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest ml-1">
+                                        Email Address
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                            <Mail size={16} className="text-muted-foreground" />
+                                        </div>
+                                        <input
+                                            id="email"
+                                            name="email"
+                                            type="email"
+                                            required
+                                            className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium shadow-sm"
+                                            placeholder="student@university.edu"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label htmlFor="password" className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest ml-1">
+                                        Password
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                            <KeyRound size={16} className="text-muted-foreground" />
+                                        </div>
+                                        <input
+                                            id="password"
+                                            name="password"
+                                            type="password"
+                                            required
+                                            className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium shadow-sm"
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="pt-4">
+                                <button
+                                    formAction={isLogin ? login : signup}
+                                    className="w-full py-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2"
+                                >
+                                    {isLogin ? "Log In" : "Create Account"}
+                                </button>
+                            </div>
+
+                            {!isLogin && (
+                                <p className="text-center text-[11px] text-muted-foreground mt-2 font-medium leading-relaxed px-4">
+                                    By signing up, you agree to confirm your email before accessing the platform.
+                                </p>
+                            )}
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
     );

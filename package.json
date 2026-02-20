@@ -17,6 +17,7 @@
     "hume": "^0.15.13",
     "lucide-react": "^0.563.0",
     "next": "16.1.6",
+    "next-themes": "^0.4.6",
     "openai": "^6.21.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",

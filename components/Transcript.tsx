@@ -1,4 +1,3 @@
-
 import clsx from "clsx";
 import ReactMarkdown from "react-markdown";
 import { Bot, User as UserIcon } from "lucide-react";
@@ -27,10 +26,10 @@ export function Transcript({ messages }: TranscriptProps) {
           >
             {/* Avatar */}
             <div className={clsx(
-              "w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-lg border border-white/10 mt-1",
+              "w-8 h-8 rounded-full flex items-center justify-center shrink-0 border mt-1 shadow-sm",
               isUser
-                ? "bg-gradient-to-br from-secondary to-blue-600 text-white"
-                : "bg-gradient-to-br from-zinc-800 to-black text-primary"
+                ? "bg-secondary text-secondary-foreground border-border"
+                : "bg-primary text-primary-foreground border-border"
             )}>
               {isUser ? <UserIcon size={14} strokeWidth={2.5} /> : <Bot size={16} />}
             </div>
@@ -38,13 +37,13 @@ export function Transcript({ messages }: TranscriptProps) {
             {/* Message Bubble */}
             <div
               className={clsx(
-                "max-w-[85%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-lg backdrop-blur-sm transition-all duration-300",
+                "max-w-[85%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-sm transition-all duration-300",
                 isUser
-                  ? "bg-secondary/10 border border-secondary/20 text-white rounded-tr-none hover:bg-secondary/20"
-                  : "bg-white/5 border border-white/10 text-zinc-200 rounded-tl-none hover:bg-white/10"
+                  ? "bg-muted border border-border text-foreground rounded-tr-none hover:bg-muted/80"
+                  : "bg-background border border-border text-foreground rounded-tl-none hover:bg-muted/50"
               )}
             >
-              <div className="prose prose-sm dark:prose-invert max-w-none">
+              <div className="prose prose-sm dark:prose-invert max-w-none text-foreground prose-p:leading-relaxed prose-p:my-1">
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>
             </div>

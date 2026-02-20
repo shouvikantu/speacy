@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef, useEffect, Suspense } from "react";
@@ -6,11 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Transcript } from "@/components/Transcript";
 import { CodePanel } from "@/components/CodePanel";
 import { MOCK_TRANSCRIPT, MOCK_CODE_SQL, MOCK_CODE_PYTHON } from "@/lib/data";
-import { Mic, Square, Settings, User, ArrowLeft, Zap, CheckCircle, Sparkles } from "lucide-react";
+import { Mic, Square, Settings, User, ArrowLeft, Zap, CheckCircle, Sparkles, LayoutDashboard } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import { buildExaminerPrompt } from "@/lib/prompts";
+import { buildExaminerPrompt, buildTutorPrompt } from "@/lib/prompts";
 
 import dynamic from 'next/dynamic';
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const HumeVoiceWrapper = dynamic(() => import("@/components/HumeVoiceWrapper"), { ssr: false });
 
@@ -19,7 +19,7 @@ function AssessmentContent() {
     const searchParams = useSearchParams();
     const assignmentIdParam = searchParams.get('assignmentId');
 
-    const [mode, setMode] = useState<'openai' | 'hume'>('openai'); // Default to OpenAI
+    const [mode, setMode] = useState<'openai' | 'hume'>('openai');
 
     const [activeCode, setActiveCode] = useState<string>(MOCK_CODE_SQL);
     const [activeLanguage, setActiveLanguage] = useState<string>("sql");
@@ -41,7 +41,6 @@ function AssessmentContent() {
         messagesRef.current = messages;
     }, [messages]);
 
-    // Fetch Assignment Data
     useEffect(() => {
         const fetchAssignment = async () => {
             if (assignmentIdParam) {
@@ -66,12 +65,10 @@ function AssessmentContent() {
     const dcRef = useRef<RTCDataChannel | null>(null);
     const lastAiEndTimeRef = useRef<number>(Date.now());
 
-    // Auto-scroll to bottom of transcript
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // Clean up connections on unmount or mode switch
     useEffect(() => {
         return () => {
             if (pcRef.current) pcRef.current.close();
@@ -82,12 +79,11 @@ function AssessmentContent() {
     const startSession = async () => {
         try {
             setSessionStatus("connecting");
-            setMessages([]); // Clear previous transcript
+            setMessages([]);
             sessionStartTimeRef.current = Date.now();
 
             const topic = assignmentData?.topic || "Lists and Tuples";
 
-            // 0. Create Assessment in DB
             const assessmentRes = await fetch("/api/assessment", {
                 method: "POST",
                 body: JSON.stringify({
@@ -105,7 +101,6 @@ function AssessmentContent() {
                 return;
             }
 
-            // Construct Instructions from shared prompt
             const instructions = buildExaminerPrompt({
                 topic,
                 description: assignmentData?.description,
@@ -113,7 +108,6 @@ function AssessmentContent() {
                 learningGoals: assignmentData?.learning_goals,
             });
 
-            // 1. Get ephemeral token from our server
             const tokenResponse = await fetch("/api/session", {
                 method: "POST",
                 body: JSON.stringify({ instructions })
@@ -121,11 +115,9 @@ function AssessmentContent() {
             const data = await tokenResponse.json();
             const EPHEMERAL_KEY = data.client_secret.value;
 
-            // 2. Create PeerConnection
             const pc = new RTCPeerConnection();
             pcRef.current = pc;
 
-            // Set up simple audio playback
             const audioEl = document.createElement("audio");
             audioEl.autoplay = true;
             audioRef.current = audioEl;
@@ -134,15 +126,11 @@ function AssessmentContent() {
                 audioEl.srcObject = e.streams[0];
             };
 
-            // Add local microphone
             const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
             pc.addTrack(ms.getTracks()[0]);
 
-            // 3. Create Data Channel for events
             const dc = pc.createDataChannel("oai-events");
             dcRef.current = dc;
-
-
 
             dc.addEventListener("message", (e) => {
                 try {
@@ -151,12 +139,49 @@ function AssessmentContent() {
                     if (event.type === 'response.output_item.done') {
                         const item = event.item;
                         if (item.type === 'function_call' && item.name === 'end_assessment') {
-                            // Wait a moment for audio to finish (approximate)
+                            // Give the AI ample time to finish its final spoken sentence before disconnecting
                             setTimeout(() => {
                                 endSession();
-                            }, 2000);
+                            }, 7000);
+                        } else if (item.type === 'function_call' && item.name === 'transferAgents') {
+                            const args = JSON.parse(item.arguments || "{}");
+                            const dest = args.destination_agent;
+                            console.log("Transferring Agents:", dest);
+
+                            setMessages(prev => [...prev, {
+                                role: 'assistant',
+                                content: `\n\n🔧 *Routing to ${dest === 'tutor_agent' ? 'Tutor' : 'Examiner'}...*\n`
+                            }]);
+
+                            let newInstructions = "";
+                            if (dest === "tutor_agent") {
+                                newInstructions = buildTutorPrompt({
+                                    topic: assignmentData?.topic || "Lists and Tuples"
+                                });
+                            } else {
+                                newInstructions = buildExaminerPrompt({
+                                    topic: assignmentData?.topic || "Lists and Tuples",
+                                    description: assignmentData?.description,
+                                    questions: assignmentData?.questions?.map((q: any) => q.prompt),
+                                    learningGoals: assignmentData?.learning_goals,
+                                });
+                            }
+
+                            // Hot-swap the system instructions for the new persona via WebRTC
+                            dc.send(JSON.stringify({
+                                type: "session.update",
+                                session: { instructions: newInstructions }
+                            }));
+
+                            // Immediately trigger the new persona to speak
+                            dc.send(JSON.stringify({
+                                type: "response.create",
+                                response: {
+                                    instructions: "Acknowledge the transfer concisely and continue the conversation.",
+                                    modalities: ["text", "audio"]
+                                }
+                            }));
                         }
-                        // Mark when AI finished speaking
                         if (item.type === 'message') {
                             lastAiEndTimeRef.current = Date.now();
                         }
@@ -174,7 +199,7 @@ function AssessmentContent() {
                                         content: lastMsg.content + event.delta,
                                         metadata: {
                                             ...lastMsg.metadata,
-                                            endTime: now // continuously update end time
+                                            endTime: now
                                         }
                                     }
                                 ];
@@ -201,7 +226,7 @@ function AssessmentContent() {
                                 role: 'user',
                                 content: event.transcript,
                                 metadata: {
-                                    startTime: now, // approximate
+                                    startTime: now,
                                     endTime: now,
                                     latency: latency > 0 ? latency : 0
                                 }
@@ -213,12 +238,11 @@ function AssessmentContent() {
                 }
             });
 
-            // 4. Offer / Answer exchange
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
             const baseUrl = "https://api.openai.com/v1/realtime";
-            const model = "gpt-4o-realtime-preview-2024-12-17";
+            const model = "gpt-4o-realtime-preview";
 
             const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
                 method: "POST",
@@ -235,9 +259,7 @@ function AssessmentContent() {
 
             setSessionStatus("connected");
 
-            // Trigger AI to start speaking (Greeting) - with delay
             const triggerGreeting = () => {
-                // Wait 2 seconds before speaking to let user settle in
                 setTimeout(() => {
                     dc.send(JSON.stringify({ type: "response.create", response: { modalities: ["text", "audio"] } }));
                 }, 2000);
@@ -266,7 +288,6 @@ function AssessmentContent() {
         const currentAssessmentId = assessmentIdRef.current;
         const currentMessages = messagesRef.current;
 
-        // Compute session-level metrics
         const sessionEndTime = Date.now();
         const sessionDurationMs = sessionStartTimeRef.current > 0
             ? sessionEndTime - sessionStartTimeRef.current
@@ -295,7 +316,6 @@ function AssessmentContent() {
             avgResponseLatencyMs: Math.round(avgLatency),
         };
 
-        // Trigger Grading in background
         if (currentAssessmentId) {
             if (currentMessages && currentMessages.length > 0) {
                 try {
@@ -313,7 +333,6 @@ function AssessmentContent() {
             }
         }
 
-        // Redirect to dashboard after a short delay
         setTimeout(() => {
             router.push('/dashboard');
         }, 3000);
@@ -321,7 +340,7 @@ function AssessmentContent() {
 
 
     const toggleSession = () => {
-        if (mode === 'hume') return; // Handled by wrapper
+        if (mode === 'hume') return;
 
         if (sessionStatus === "connected" || sessionStatus === "connecting") {
             endSession();
@@ -330,7 +349,6 @@ function AssessmentContent() {
         }
     };
 
-    // Demo toggle for code context
     const toggleCode = () => {
         if (activeLanguage === "sql") {
             setActiveCode(MOCK_CODE_PYTHON);
@@ -343,39 +361,27 @@ function AssessmentContent() {
 
     if (showThankYou) {
         return (
-            <div className="flex h-screen bg-background overflow-hidden font-sans items-center justify-center relative">
-                {/* Animated background */}
-                <div className="absolute inset-0 z-0 pointer-events-none">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,_rgba(139,92,246,0.15)_0%,_transparent_60%)]" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_70%,_rgba(59,130,246,0.1)_0%,_transparent_50%)]" />
-                </div>
+            <div className="flex min-h-screen bg-background items-center justify-center font-sans transition-colors duration-300 relative overflow-hidden">
+                {/* Subtle Background Elements */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[100px] pointer-events-none -z-10" />
 
-                <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-lg animate-in fade-in slide-in-from-bottom-4 duration-700">
-                    {/* Success icon */}
+                <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-lg animate-fade-in-up">
                     <div className="relative mb-8">
-                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-500/20 to-green-500/20 border border-emerald-500/30 flex items-center justify-center shadow-[0_0_40px_rgba(16,185,129,0.2)]">
-                            <CheckCircle size={48} className="text-emerald-400" />
+                        <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center shadow-lg shadow-primary/20">
+                            <CheckCircle size={48} className="text-white fill-white/10" />
                         </div>
-                        <Sparkles size={20} className="absolute -top-2 -right-2 text-yellow-400 animate-pulse" />
-                        <Sparkles size={14} className="absolute -bottom-1 -left-3 text-purple-400 animate-pulse delay-300" />
                     </div>
 
-                    {/* Thank you message */}
-                    <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-zinc-200 to-zinc-400 mb-3">
-                        Thank You!
+                    <h1 className="text-4xl font-extrabold text-foreground tracking-tight mb-4">
+                        Assessment Complete
                     </h1>
-                    <p className="text-lg text-zinc-300 mb-2">
-                        Thank you for completing this assessment.
-                    </p>
-                    <p className="text-sm text-zinc-500 mb-8 leading-relaxed">
-                        Please bear with us as we continue to improve this system.
-                        Your grade will be ready to view on your dashboard in a couple of minutes.
+                    <p className="text-lg font-medium text-muted-foreground mb-10 leading-relaxed">
+                        Your exam has been successfully recorded. The AI is now analyzing your performance and generating a detailed feedback report.
                     </p>
 
-                    {/* Redirect notice */}
-                    <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-white/5 border border-white/10">
-                        <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-                        <span className="text-sm text-zinc-400">Redirecting you to the dashboard soon</span>
+                    <div className="flex items-center gap-3 px-6 py-4 rounded-xl bg-muted border border-border shadow-sm">
+                        <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                        <span className="text-sm font-semibold text-foreground tracking-wide">Redirecting to Dashboard...</span>
                     </div>
                 </div>
             </div>
@@ -383,106 +389,126 @@ function AssessmentContent() {
     }
 
     return (
-        <div className="flex h-screen bg-background overflow-hidden font-sans">
-            {/* Background Mesh Gradient */}
-            <div className="absolute inset-0 z-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_rgba(139,92,246,0.1)_0%,_transparent_50%)]" />
-
-            {/* Sidebar */}
-            <aside className="hidden md:flex w-20 border-r border-white/5 flex-col items-center py-6 gap-8 bg-black/40 backdrop-blur-md z-20">
-                <button onClick={() => router.push('/dashboard')} className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary font-bold hover:bg-primary/30 transition-colors">
-                    <ArrowLeft size={20} />
+        <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans transition-colors duration-300">
+            {/* Minimalist Sidebar */}
+            <aside className="hidden md:flex w-20 border-r border-border flex-col items-center py-6 gap-8 bg-muted/30 z-20 shrink-0">
+                <button onClick={() => router.push('/dashboard')} className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center text-white shadow-md shadow-primary/20 hover:scale-105 active:scale-95 transition-all">
+                    <LayoutDashboard size={22} fill="currentColor" className="opacity-80" />
                 </button>
-                <nav className="flex flex-col gap-6 mt-auto">
-                    <button className="p-3 rounded-xl hover:bg-white/5 text-zinc-500 hover:text-white transition-all hover:scale-105"><Settings size={22} /></button>
-                    <button className="p-3 rounded-xl hover:bg-white/5 text-zinc-500 hover:text-white transition-all hover:scale-105"><User size={22} /></button>
+                <nav className="flex flex-col gap-4 mt-auto">
+                    <button className="w-12 h-12 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all">
+                        <Settings size={22} />
+                    </button>
+                    <button className="w-12 h-12 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all">
+                        <User size={22} />
+                    </button>
                 </nav>
             </aside>
 
             {/* Main Content Area */}
-            <main className="flex-1 flex flex-col h-full bg-transparent z-10 relative">
+            <main className="flex-1 flex flex-col h-full z-10 relative">
                 {/* Modern Header */}
-                <header className="h-16 px-6 flex items-center justify-between shrink-0 border-b border-white/5 bg-black/20 backdrop-blur-sm">
+                <header className="h-[72px] px-8 flex items-center justify-between shrink-0 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-30">
                     <div className="flex items-center gap-4">
-                        <div className="h-8 w-1 bg-primary rounded-full" />
-                        <div>
-                            <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400">Database Optimization</h1>
-                            <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                Live Assessment
-                            </p>
+                        <div className="flex items-center gap-3">
+                            {/* Back Button (Mobile) */}
+                            <button onClick={() => router.push('/dashboard')} className="md:hidden p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors mr-2">
+                                <ArrowLeft size={20} />
+                            </button>
+                            <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                                <Sparkles size={18} />
+                            </div>
+                            <div>
+                                <h1 className="text-lg font-extrabold tracking-tight text-foreground">{assignmentData?.topic || "Assessment"}</h1>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold flex items-center gap-1.5 mt-0.5">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                                    </span>
+                                    Live Session
+                                </p>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        {/* Progress Pill */}
-                        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/5 text-xs font-mono text-zinc-400">
-                            <Zap size={12} className="text-yellow-500" />
-                            <span>XP: 100</span>
+                    <div className="flex items-center gap-4">
+                        <div className="bg-background border border-border/50 shadow-sm p-1 rounded-full flex items-center justify-center hidden md:flex">
+                            <ThemeToggle />
+                        </div>
+                        <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-muted border border-border text-xs font-bold text-foreground shadow-sm">
+                            <Zap size={14} className="text-yellow-500 fill-yellow-500" />
+                            <span>100 XP</span>
                         </div>
 
                         <button
                             onClick={toggleCode}
-                            className="px-4 py-2 text-xs font-bold uppercase tracking-wider border border-white/10 rounded-lg hover:bg-white/5 text-zinc-400 transition-all hover:text-white hover:border-white/20"
+                            className="px-5 py-2 text-xs font-bold uppercase tracking-wider border border-border rounded-full hover:bg-muted text-muted-foreground transition-all hover:text-foreground shadow-sm bg-background"
                         >
-                            {activeLanguage === 'sql' ? 'Switch to Python' : 'Switch to SQL'}
+                            {activeLanguage === 'sql' ? 'Python' : 'SQL'}
                         </button>
                     </div>
                 </header>
 
-                {/* Glassy Split View */}
-                <div className="flex-1 flex flex-col md:flex-row overflow-hidden p-4 gap-4">
+                <div className="flex-1 flex flex-col md:flex-row overflow-hidden p-6 gap-6 bg-muted/10 relative">
+
+                    {/* Subtle aesthetic backdrop */}
+                    <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] pointer-events-none z-0" />
 
                     {/* Left Panel: Conversation */}
-                    <div className="flex-1 md:w-1/2 flex flex-col rounded-2xl glass-panel relative overflow-hidden">
-                        <div className="flex-1 overflow-y-auto scroll-smooth p-6 pb-32 custom-scrollbar">
-                            <div className="flex justify-center mb-4">
-                                <div className="bg-black/40 p-1 rounded-lg flex items-center gap-1 border border-white/10">
-                                    <button
-                                        onClick={() => {
-                                            if (sessionStatus === 'disconnected') setMode('openai');
-                                        }}
-                                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${mode === 'openai' ? 'bg-white/10 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}
-                                    >
-                                        Standard (OpenAI)
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            if (sessionStatus === 'disconnected') setMode('hume');
-                                        }}
-                                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${mode === 'hume' ? 'bg-gradient-to-r from-purple-500/20 to-indigo-500/20 text-purple-300 border border-purple-500/30' : 'text-zinc-500 hover:text-zinc-300'}`}
-                                    >
-                                        Empathic (Hume)
-                                    </button>
-                                </div>
-                            </div>
+                    <div className="premium-card flex-1 md:w-1/2 flex flex-col relative overflow-hidden z-10 w-full h-full">
 
+                        {/* Engine Switcher */}
+                        <div className="absolute top-0 left-0 w-full p-4 border-b border-border/50 bg-background/80 backdrop-blur-sm z-20 flex justify-center">
+                            <div className="bg-muted p-1 rounded-lg flex items-center gap-1 border border-border shadow-inner">
+                                <button
+                                    onClick={() => {
+                                        if (sessionStatus === 'disconnected') setMode('openai');
+                                    }}
+                                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mode === 'openai' ? 'bg-background text-foreground shadow-sm border border-border/50' : 'text-muted-foreground hover:text-foreground'}`}
+                                >
+                                    OpenAI Engine
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (sessionStatus === 'disconnected') setMode('hume');
+                                    }}
+                                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mode === 'hume' ? 'bg-background text-foreground shadow-sm border border-border/50' : 'text-muted-foreground hover:text-foreground'}`}
+                                >
+                                    Hume Engine
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto scroll-smooth p-6 pt-24 pb-32">
                             <Transcript messages={mode === 'hume' ? messages.filter(m => m.role === 'assistant') : messages} />
                             <div ref={messagesEndRef} />
                         </div>
 
                         {/* Floating Voice Control Bar */}
                         {mode === 'openai' ? (
-                            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 p-2 pr-6 pl-2 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl z-30 transition-all duration-500 hover:scale-105 hover:border-primary/30">
-
+                            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 p-2.5 pr-8 pl-3 rounded-full bg-background border border-border shadow-lg z-30 transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
                                 <button
                                     onClick={toggleSession}
-                                    className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all duration-500 ${sessionStatus === 'connected'
-                                        ? 'bg-red-500 text-white animate-orb-breath shadow-[0_0_30px_rgba(239,68,68,0.4)]'
+                                    className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-md ${sessionStatus === 'connected'
+                                        ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-destructive/20'
                                         : sessionStatus === 'connecting'
-                                            ? 'bg-zinc-800 text-zinc-500 cursor-wait'
-                                            : 'bg-gradient-to-br from-primary to-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:shadow-[0_0_30px_rgba(37,99,235,0.6)]'
+                                            ? 'bg-muted text-muted-foreground cursor-wait'
+                                            : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20'
                                         }`}
                                 >
                                     {sessionStatus === 'connected' ? <Square size={20} fill="currentColor" /> : <Mic size={24} />}
                                 </button>
 
                                 <div className="flex flex-col">
-                                    <span className={`text-sm font-bold ${sessionStatus === 'connected' ? 'text-white' : 'text-zinc-400'}`}>
-                                        {sessionStatus === 'connected' ? 'Listening...' : sessionStatus === 'connecting' ? 'Connecting...' : 'Start Exam'}
+                                    <span className={`text-[15px] font-extrabold tracking-tight ${sessionStatus === 'connected' ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                        {sessionStatus === 'connected' ? 'Listening...' : sessionStatus === 'connecting' ? 'Connecting...' : 'Start Assessment'}
                                     </span>
-                                    <span className="text-[10px] text-zinc-600 font-mono uppercase">
-                                        {sessionStatus === 'connected' ? '00:42 / 05:00' : 'Ready to start'}
-                                    </span>
+                                    {sessionStatus === 'connected' && (
+                                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1.5">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
+                                            Recording Active
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         ) : (
@@ -520,25 +546,29 @@ function AssessmentContent() {
                     </div>
 
                     {/* Right Panel: Code Visualization */}
-                    <div className="hidden md:flex md:w-1/2 flex-col h-full overflow-hidden rounded-2xl shadow-2xl">
-                        <CodePanel
-                            code={activeCode}
-                            language={activeLanguage}
-                            isEditable={true}
-                            onChange={(newCode) => setActiveCode(newCode)}
-                            className="h-full border border-white/10"
-                        />
+                    <div className="premium-card hidden md:flex md:w-1/2 flex-col h-full overflow-hidden z-10 p-0 border-0 bg-transparent">
+                        <div className="flex-1 rounded-2xl overflow-hidden border border-border shadow-sm">
+                            <CodePanel
+                                code={activeCode}
+                                language={activeLanguage}
+                                isEditable={true}
+                                onChange={(newCode) => setActiveCode(newCode)}
+                                className="h-full border-0"
+                            />
+                        </div>
                     </div>
 
                     {/* Mobile Code View */}
-                    <div className="md:hidden h-64 flex flex-col shrink-0 rounded-2xl overflow-hidden glass-panel">
-                        <CodePanel
-                            code={activeCode}
-                            language={activeLanguage}
-                            isEditable={true}
-                            onChange={(newCode) => setActiveCode(newCode)}
-                            className="h-full border-0"
-                        />
+                    <div className="md:hidden h-64 flex flex-col shrink-0 premium-card z-10 p-0 border-0 bg-transparent">
+                        <div className="flex-1 rounded-2xl overflow-hidden border border-border shadow-sm">
+                            <CodePanel
+                                code={activeCode}
+                                language={activeLanguage}
+                                isEditable={true}
+                                onChange={(newCode) => setActiveCode(newCode)}
+                                className="h-full border-0"
+                            />
+                        </div>
                     </div>
 
                 </div>
@@ -550,8 +580,13 @@ function AssessmentContent() {
 export default function AssessmentPage() {
     return (
         <Suspense fallback={
-            <div className="flex h-screen items-center justify-center bg-background text-zinc-400">
-                Loading assessment...
+            <div className="flex h-screen items-center justify-center bg-background text-foreground font-sans">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-muted border border-border flex items-center justify-center animate-pulse">
+                        <Sparkles size={24} className="text-muted-foreground opacity-50" />
+                    </div>
+                    <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Loading Environment...</p>
+                </div>
             </div>
         }>
             <AssessmentContent />

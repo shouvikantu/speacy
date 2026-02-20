@@ -15,17 +15,34 @@ export async function POST(req: Request) {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                model: "gpt-realtime",
+                model: "gpt-4o-realtime-preview",
                 voice: "ash",
                 instructions: systemInstructions,
+                turn_detection: {
+                    type: "server_vad",
+                    threshold: 0.7,
+                    prefix_padding_ms: 300,
+                    silence_duration_ms: 1000
+                },
                 tools: [
                     {
                         type: "function",
                         name: "end_assessment",
-                        description: "Ends the oral exam assessment after 5 questions.",
+                        description: "Ends the oral exam assessment after completing all curriculum nodes.",
+                    },
+                    {
+                        type: "function",
+                        name: "transferAgents",
+                        description: "Triggers a transfer of the user to a more specialized Tutor agent when the student struggles heavily or asks for help. Let the user know you are transferring them to a tutor before calling this.",
                         parameters: {
                             type: "object",
-                            properties: {},
+                            properties: {
+                                destination_agent: {
+                                    type: "string",
+                                    enum: ["tutor_agent", "examiner_agent"],
+                                    description: "The agent to transfer to. Use 'tutor_agent' when the student needs help. Use 'examiner_agent' to return to the exam after helping."
+                                }
+                            },
                         },
                     },
                 ],
