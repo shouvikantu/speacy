@@ -5,12 +5,28 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Transcript } from "@/components/Transcript";
 import { CodePanel } from "@/components/CodePanel";
 import { MOCK_TRANSCRIPT, MOCK_CODE_SQL, MOCK_CODE_PYTHON } from "@/lib/data";
-import { Mic, Square, ArrowLeft, Zap, CheckCircle, Sparkles, Send } from "lucide-react";
+import { Mic, Square, ArrowLeft, CheckCircle, Sparkles, Send } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { buildExaminerPrompt } from "@/lib/prompts";
-
-import dynamic from 'next/dynamic';
 import { ThemeToggle } from "@/components/ThemeToggle";
+
+interface AssignmentData {
+    id: string;
+    topic: string;
+    description?: string;
+    questions?: { prompt: string }[];
+    learning_goals?: string[];
+}
+
+interface TranscriptMessage {
+    role: 'user' | 'assistant';
+    content: string;
+    metadata?: {
+        startTime?: number;
+        endTime?: number;
+        latency?: number;
+    };
+}
 
 
 function AssessmentContent() {
@@ -23,10 +39,10 @@ function AssessmentContent() {
     const [activeLanguage, setActiveLanguage] = useState<string>("sql");
     const [assessmentId, setAssessmentId] = useState<string | null>(null);
     const [sessionStatus, setSessionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
-    const [assignmentData, setAssignmentData] = useState<any>(null);
+    const [assignmentData, setAssignmentData] = useState<AssignmentData | null>(null);
     const [showThankYou, setShowThankYou] = useState(false);
 
-    const [messages, setMessages] = useState<any[]>(MOCK_TRANSCRIPT);
+    const [messages, setMessages] = useState<TranscriptMessage[]>(MOCK_TRANSCRIPT);
     const messagesRef = useRef(messages);
     const assessmentIdRef = useRef<string | null>(null);
     const sessionStartTimeRef = useRef<number>(0);
@@ -43,7 +59,7 @@ function AssessmentContent() {
         const fetchAssignment = async () => {
             if (assignmentIdParam) {
                 const supabase = createClient();
-                const { data, error } = await supabase
+                const { data } = await supabase
                     .from('assignments')
                     .select('*')
                     .eq('id', assignmentIdParam)
@@ -61,7 +77,7 @@ function AssessmentContent() {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const dcRef = useRef<RTCDataChannel | null>(null);
-    const lastAiEndTimeRef = useRef<number>(Date.now());
+    const lastAiEndTimeRef = useRef<number>(0);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -78,12 +94,16 @@ function AssessmentContent() {
         try {
             setSessionStatus("connecting");
             setMessages([]);
-            sessionStartTimeRef.current = Date.now();
+            // eslint-disable-next-line react-hooks/purity
+            const now = Date.now();
+            sessionStartTimeRef.current = now;
+            lastAiEndTimeRef.current = now;
 
             const topic = assignmentData?.topic || "Lists and Tuples";
 
             const assessmentRes = await fetch("/api/assessment", {
                 method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     topic,
                     assignmentId: assignmentIdParam
@@ -102,12 +122,13 @@ function AssessmentContent() {
             const instructions = buildExaminerPrompt({
                 topic,
                 description: assignmentData?.description,
-                questions: assignmentData?.questions?.map((q: any) => q.prompt),
+                questions: assignmentData?.questions?.map((q) => q.prompt),
                 learningGoals: assignmentData?.learning_goals,
             });
 
             const tokenResponse = await fetch("/api/session", {
                 method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ instructions })
             });
             const data = await tokenResponse.json();
@@ -144,17 +165,16 @@ function AssessmentContent() {
                         } else if (item.type === 'function_call' && item.name === 'transferAgents') {
                             const args = JSON.parse(item.arguments || "{}");
                             const dest = args.destination_agent;
-                            console.log("Transferring Agents:", dest);
 
                             setMessages(prev => [...prev, {
                                 role: 'assistant',
                                 content: `\n\n🔧 *Routing to ${dest === 'tutor_agent' ? 'Tutor' : 'Examiner'}...*\n`
                             }]);
 
-                            let newInstructions = buildExaminerPrompt({
+                            const newInstructions = buildExaminerPrompt({
                                 topic: assignmentData?.topic || "Lists and Tuples",
                                 description: assignmentData?.description,
-                                questions: assignmentData?.questions?.map((q: any) => q.prompt),
+                                questions: assignmentData?.questions?.map((q) => q.prompt),
                                 learningGoals: assignmentData?.learning_goals,
                             });
 
@@ -284,14 +304,14 @@ function AssessmentContent() {
             ? sessionEndTime - sessionStartTimeRef.current
             : 0;
 
-        const assistantMessages = currentMessages?.filter((m: any) => m.role === 'assistant') || [];
-        const userMessages = currentMessages?.filter((m: any) => m.role === 'user') || [];
+        const assistantMessages = currentMessages?.filter((m) => m.role === 'assistant') || [];
+        const userMessages = currentMessages?.filter((m) => m.role === 'user') || [];
 
-        const assistantWordCount = assistantMessages.reduce((sum: number, m: any) => sum + (m.content?.split(/\s+/).length || 0), 0);
-        const userWordCount = userMessages.reduce((sum: number, m: any) => sum + (m.content?.split(/\s+/).length || 0), 0);
+        const assistantWordCount = assistantMessages.reduce((sum, m) => sum + (m.content?.split(/\s+/).length || 0), 0);
+        const userWordCount = userMessages.reduce((sum, m) => sum + (m.content?.split(/\s+/).length || 0), 0);
 
         const avgLatency = userMessages.length > 0
-            ? userMessages.reduce((sum: number, m: any) => sum + (m.metadata?.latency || 0), 0) / userMessages.length
+            ? userMessages.reduce((sum, m) => sum + (m.metadata?.latency || 0), 0) / userMessages.length
             : 0;
 
         const sessionMetrics = {
@@ -312,6 +332,7 @@ function AssessmentContent() {
                 try {
                     await fetch("/api/grade", {
                         method: "POST",
+                        headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             assessmentId: currentAssessmentId,
                             messages: currentMessages,

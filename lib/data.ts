@@ -1,5 +1,5 @@
 export const MOCK_TRANSCRIPT = [
-    { role: "assistant", content: "Hello! When you are ready, please start the assessment." },
+    { role: "assistant" as const, content: "Hello! When you are ready, please start the assessment." },
 ];
 
 export const MOCK_CODE_SQL = `-- Optimizing a slow query

@@ -1,9 +1,10 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { Users, BookOpen, Plus, TrendingUp, Calendar, Zap, FileText, UserCircle, ArrowRight } from "lucide-react";
+import { Users, BookOpen, Plus, TrendingUp, Zap, FileText, UserCircle, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import LogoutButton from "@/components/LogoutButton";
 import ExamCreationForm from "./ExamCreationForm";
+import DeleteAssignmentButton from "./DeleteAssignmentButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default async function ProfessorDashboard() {
@@ -41,16 +42,16 @@ export default async function ProfessorDashboard() {
         .select("total_score, status, topic, student_name")
         .order("created_at", { ascending: false });
 
-    const totalStudents = new Set(allAssessments?.map((a: any) => a.student_name)).size || 0;
+    const totalStudents = new Set(allAssessments?.map((a) => a.student_name)).size || 0;
     const totalExamsTaken = allAssessments?.length || 0;
-    const completedExams = allAssessments?.filter((a: any) => a.status === 'graded' || a.status === 'completed') || [];
+    const completedExams = allAssessments?.filter((a) => a.status === 'graded' || a.status === 'completed') || [];
     const avgScore = completedExams.length > 0
-        ? Math.round(completedExams.reduce((acc: number, curr: any) => acc + (curr.total_score || 0), 0) / completedExams.length)
+        ? Math.round(completedExams.reduce((acc, curr) => acc + (curr.total_score || 0), 0) / completedExams.length)
         : 0;
 
     // Build student list with aggregated stats
     const studentMap = new Map<string, { examCount: number; totalScore: number; gradedCount: number }>();
-    allAssessments?.forEach((a: any) => {
+    allAssessments?.forEach((a) => {
         if (!a.student_name) return;
         const existing = studentMap.get(a.student_name) || { examCount: 0, totalScore: 0, gradedCount: 0 };
         existing.examCount++;
@@ -133,9 +134,9 @@ export default async function ProfessorDashboard() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                     {/* Left: Assignments List */}
-                    <div className="lg:col-span-2 flex flex-col gap-10">
+                    <div className="flex flex-col gap-10">
                         {/* Assignments Section */}
                         <div className="flex flex-col gap-4">
                             <div className="flex items-center justify-between pb-2 border-b border-border/50">
@@ -163,6 +164,7 @@ export default async function ProfessorDashboard() {
                                                         <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Created</span>
                                                         <span className="text-sm font-medium text-foreground">{new Date(assignment.created_at).toLocaleDateString()}</span>
                                                     </div>
+                                                    <DeleteAssignmentButton assignmentId={assignment.id} />
                                                 </div>
                                             </div>
                                         ))}
@@ -240,7 +242,7 @@ export default async function ProfessorDashboard() {
                             Create New Exam
                         </h2>
 
-                        <div className="premium-card p-6 border-indigo-500/10 shadow-indigo-500/5">
+                        <div className="premium-card p-8 border-indigo-500/10 shadow-indigo-500/5 lg:sticky lg:top-6">
                             <ExamCreationForm />
                         </div>
                     </div>

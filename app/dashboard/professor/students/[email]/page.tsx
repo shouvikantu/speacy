@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Calendar, TrendingUp, FileText, Users } from "lucide-react";
+import { ArrowLeft, Calendar, TrendingUp, FileText } from "lucide-react";
 import LogoutButton from "@/components/LogoutButton";
 import ReevaluateButton from "@/components/ReevaluateButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -60,12 +60,12 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
                         <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-2 text-foreground">
                             Student Profile
                         </h1>
-                        <p className="text-muted-foreground font-medium flex items-center gap-2">
+                        <div className="text-muted-foreground font-medium flex items-center gap-2">
                             <div className="w-6 h-6 rounded-full bg-gradient-to-br from-muted to-border flex items-center justify-center text-foreground font-bold text-[10px] shadow-sm border border-background">
                                 {studentEmail.charAt(0).toUpperCase()}
                             </div>
                             <span className="text-foreground tracking-tight">{studentEmail}</span>
-                        </p>
+                        </div>
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="bg-background border border-border/50 shadow-sm p-1 rounded-full flex items-center justify-center">

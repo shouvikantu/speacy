@@ -257,7 +257,7 @@ export default async function DashboardPage() {
                                 <TrendingUp size={16} /> Pro Tip
                             </h4>
                             <p className="text-[13px] text-muted-foreground leading-relaxed font-medium relative z-10">
-                                Speaking clearly and using technical terminology increases your score significantly. Try to elaborate on the "Why" and not just the "How".
+                                Speaking clearly and using technical terminology increases your score significantly. Try to elaborate on the &quot;Why&quot; and not just the &quot;How&quot;.
                             </p>
                         </div>
                     </div>

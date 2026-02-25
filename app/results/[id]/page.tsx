@@ -1,7 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle, XCircle, AlertCircle, TrendingUp, ArrowRight, RotateCcw, Home, Sparkles } from "lucide-react";
+import { CheckCircle, AlertCircle, TrendingUp, ArrowRight, RotateCcw, Home, Sparkles } from "lucide-react";
 import clsx from "clsx";
 import { ThemeToggle } from "@/components/ThemeToggle";
 

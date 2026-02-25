@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Mic, BrainCircuit, Activity, LineChart, FileText, ArrowRight, Sparkles } from "lucide-react";
+import { Mic, BrainCircuit, Activity, ArrowRight, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function Home() {
@@ -44,7 +44,7 @@ export default function Home() {
           </h1>
 
           <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto font-medium">
-            Speacy is an experimental platform leveraging generative AI to conduct Socratic oral exams. Evaluate a student's <strong className="text-foreground">reasoning process</strong>, rather than just rote recall.
+            Speacy is an experimental platform leveraging generative AI to conduct Socratic oral exams. Evaluate a student&apos;s <strong className="text-foreground">reasoning process</strong>, rather than just rote recall.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 mt-8 w-full sm:w-auto">
@@ -80,7 +80,7 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-bold mb-3 tracking-tight text-foreground">Realtime Voice Interface</h3>
               <p className="text-muted-foreground text-sm leading-relaxed font-medium">
-                Seamlessly leverage OpenAI's Realtime API for rapid, conversational oral assessments.
+                Seamlessly leverage OpenAI&apos;s Realtime API for rapid, conversational oral assessments.
               </p>
             </div>
 

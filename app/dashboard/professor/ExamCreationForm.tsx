@@ -20,15 +20,6 @@ export default function ExamCreationForm() {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const handleQuestionChange = (index: number, value: string) => {
-        const newQuestions = [...formData.questions];
-        newQuestions[index].prompt = value;
-        setFormData({ ...formData, questions: newQuestions });
-    };
-
-    const addQuestion = () => {
-        setFormData({ ...formData, questions: [...formData.questions, { prompt: "" }] });
-    };
 
     const handleGoalChange = (index: number, value: string) => {
         const newGoals = [...formData.learning_goals];
@@ -55,6 +46,7 @@ export default function ExamCreationForm() {
         try {
             const res = await fetch("/api/assignments", {
                 method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(formData)
             });
 

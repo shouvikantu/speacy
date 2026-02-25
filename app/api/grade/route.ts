@@ -25,7 +25,7 @@ export async function POST(req: Request) {
         }
 
         // Save messages to DB
-        const messagesToInsert = messages.map((msg: any) => ({
+        const messagesToInsert = messages.map((msg: { role: string; content: string; metadata?: Record<string, unknown> }) => ({
             assessment_id: assessmentId,
             role: msg.role,
             content: msg.content,

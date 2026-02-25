@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     }
 }
 
-export async function GET(req: Request) {
+export async function GET() {
     const supabase = await createClient();
     // Check Authentication
     const {

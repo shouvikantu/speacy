@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Terminal, Copy, Sparkles } from "lucide-react";
+import { Terminal, Sparkles } from "lucide-react";
 
 interface CodePanelProps {
     code: string;

@@ -1,13 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { login, signup } from "./actions";
-import { Zap, Mail, KeyRound } from "lucide-react";
+import { Zap, Mail, KeyRound, AlertCircle } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import Link from "next/link";
 
 export default function LoginPage() {
     const [isLogin, setIsLogin] = useState(true);
+    const [loginState, loginAction, loginPending] = useActionState(login, { error: null });
+    const [signupState, signupAction, signupPending] = useActionState(signup, { error: null });
+
+    const error = isLogin ? loginState.error : signupState.error;
+    const pending = isLogin ? loginPending : signupPending;
 
     return (
         <div className="flex min-h-screen items-center justify-center font-sans bg-background relative overflow-hidden transition-colors duration-300">
@@ -69,7 +74,15 @@ export default function LoginPage() {
                             </button>
                         </div>
 
-                        <form className="flex flex-col gap-5">
+                        {/* Error Message */}
+                        {error && (
+                            <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm font-medium animate-fade-in-up">
+                                <AlertCircle size={16} className="shrink-0" />
+                                {error}
+                            </div>
+                        )}
+
+                        <form className="flex flex-col gap-5" action={isLogin ? loginAction : signupAction}>
                             <div className="space-y-4">
                                 {!isLogin && (
                                     <div className="space-y-1.5">
@@ -101,7 +114,7 @@ export default function LoginPage() {
                                             type="email"
                                             required
                                             className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium shadow-sm"
-                                            placeholder="student@university.edu"
+                                            placeholder="you@willamette.edu"
                                         />
                                     </div>
                                 </div>
@@ -128,10 +141,11 @@ export default function LoginPage() {
 
                             <div className="pt-4">
                                 <button
-                                    formAction={isLogin ? login : signup}
-                                    className="w-full py-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2"
+                                    type="submit"
+                                    disabled={pending}
+                                    className="w-full py-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
                                 >
-                                    {isLogin ? "Log In" : "Create Account"}
+                                    {pending ? "Please wait..." : isLogin ? "Log In" : "Create Account"}
                                 </button>
                             </div>
 
