@@ -17,7 +17,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { assessmentId, messages, sessionMetrics } = await req.json();
+    const { assessmentId, messages, sessionMetrics, recordingUrl } = await req.json();
 
     try {
         if (!messages || messages.length === 0) {
@@ -76,14 +76,20 @@ export async function POST(req: Request) {
 
         const gradeData = JSON.parse(completion.choices[0].message.content || "{}");
 
-        // Update Assessment in DB with grade
+        // Update Assessment in DB with grade and recording URL
+        const updatePayload: any = {
+            total_score: gradeData.score,
+            feedback: JSON.stringify(gradeData),
+            status: 'graded'
+        };
+
+        if (recordingUrl) {
+            updatePayload.recording_url = recordingUrl;
+        }
+
         const { error } = await supabase
             .from("assessments")
-            .update({
-                total_score: gradeData.score,
-                feedback: JSON.stringify(gradeData),
-                status: 'graded'
-            })
+            .update(updatePayload)
             .eq("id", assessmentId);
 
         if (error) {

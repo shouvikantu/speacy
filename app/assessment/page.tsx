@@ -81,6 +81,8 @@ function AssessmentContent() {
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const dcRef = useRef<RTCDataChannel | null>(null);
     const lastAiEndTimeRef = useRef<number>(0);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordedChunksRef = useRef<BlobPart[]>([]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -137,6 +139,10 @@ function AssessmentContent() {
             const data = await tokenResponse.json();
             const EPHEMERAL_KEY = data.client_secret.value;
 
+            // Setup audio mixer for recording both sides
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const destinationNode = audioCtx.createMediaStreamDestination();
+
             const pc = new RTCPeerConnection();
             pcRef.current = pc;
 
@@ -146,10 +152,31 @@ function AssessmentContent() {
 
             pc.ontrack = (e) => {
                 audioEl.srcObject = e.streams[0];
+                // Connect remote AI stream to the mixer
+                const remoteSource = audioCtx.createMediaStreamSource(e.streams[0]);
+                remoteSource.connect(destinationNode);
             };
 
             const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
             pc.addTrack(ms.getTracks()[0]);
+
+            // Connect local mic stream to the mixer
+            const localSource = audioCtx.createMediaStreamSource(ms);
+            localSource.connect(destinationNode);
+
+            // Initialize MediaRecorder to capture the mixed streams
+            const mediaRecorder = new MediaRecorder(destinationNode.stream);
+            mediaRecorderRef.current = mediaRecorder;
+            recordedChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    recordedChunksRef.current.push(e.data);
+                }
+            };
+
+            // Note: start the recorder 
+            mediaRecorder.start();
 
             const dc = pc.createDataChannel("oai-events");
             dcRef.current = dc;
@@ -347,6 +374,49 @@ function AssessmentContent() {
             avgResponseLatencyMs: Math.round(avgLatency),
         };
 
+        let recordingUrl: string | null = null;
+
+        // Finalize recording and upload to Supabase before grading request
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            const uploadPromise = new Promise<{ publicUrl: string | null } | null>((resolve) => {
+                const recorder = mediaRecorderRef.current!;
+                recorder.onstop = async () => {
+                    const blob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
+                    const supabaseClient = createClient();
+
+                    const fileName = `${currentAssessmentId}-${Date.now()}.webm`;
+                    const { data, error } = await supabaseClient.storage
+                        .from('exam_recordings')
+                        .upload(fileName, blob, {
+                            contentType: 'audio/webm'
+                        });
+
+                    if (error) {
+                        console.error("Error uploading recording:", error);
+                        resolve(null);
+                    } else if (data) {
+                        const { data: publicUrlData } = supabaseClient.storage
+                            .from('exam_recordings')
+                            .getPublicUrl(data.path);
+                        resolve({ publicUrl: publicUrlData.publicUrl });
+                    } else {
+                        resolve(null);
+                    }
+                };
+            });
+
+            mediaRecorderRef.current.stop();
+
+            try {
+                const result = await uploadPromise;
+                if (result && result.publicUrl) {
+                    recordingUrl = result.publicUrl;
+                }
+            } catch (err) {
+                console.error("Failed to wait for recording upload", err);
+            }
+        }
+
         if (currentAssessmentId) {
             if (currentMessages && currentMessages.length > 0) {
                 try {
@@ -356,7 +426,8 @@ function AssessmentContent() {
                         body: JSON.stringify({
                             assessmentId: currentAssessmentId,
                             messages: currentMessages,
-                            sessionMetrics
+                            sessionMetrics,
+                            recordingUrl
                         })
                     });
                 } catch (e) {
