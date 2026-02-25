@@ -54,7 +54,16 @@ export async function signup(
     if (!isEmailAllowed(email)) {
         return { error: "Only willamette.edu email addresses are allowed." };
     }
-    const origin = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const getURL = () => {
+        let url =
+            process?.env?.NEXT_PUBLIC_SITE_URL ?? // Make sure this is set in Vercel to https://speacy.vercel.app
+            process?.env?.NEXT_PUBLIC_VERCEL_URL ?? // Automatically set by Vercel.
+            'http://localhost:3000';
+        url = url.includes('http') ? url : `https://${url}`;
+        // Ensure no trailing slash
+        return url.charAt(url.length - 1) === '/' ? url.slice(0, -1) : url;
+    };
+    const origin = getURL();
 
     const { error } = await supabase.auth.signUp({
         email,
