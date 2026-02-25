@@ -5,21 +5,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Transcript } from "@/components/Transcript";
 import { CodePanel } from "@/components/CodePanel";
 import { MOCK_TRANSCRIPT, MOCK_CODE_SQL, MOCK_CODE_PYTHON } from "@/lib/data";
-import { Mic, Square, Settings, User, ArrowLeft, Zap, CheckCircle, Sparkles, LayoutDashboard } from "lucide-react";
+import { Mic, Square, ArrowLeft, Zap, CheckCircle, Sparkles, Send } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import { buildExaminerPrompt, buildTutorPrompt } from "@/lib/prompts";
+import { buildExaminerPrompt } from "@/lib/prompts";
 
 import dynamic from 'next/dynamic';
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-const HumeVoiceWrapper = dynamic(() => import("@/components/HumeVoiceWrapper"), { ssr: false });
 
 function AssessmentContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const assignmentIdParam = searchParams.get('assignmentId');
 
-    const [mode, setMode] = useState<'openai' | 'hume'>('openai');
 
     const [activeCode, setActiveCode] = useState<string>(MOCK_CODE_SQL);
     const [activeLanguage, setActiveLanguage] = useState<string>("sql");
@@ -74,7 +72,7 @@ function AssessmentContent() {
             if (pcRef.current) pcRef.current.close();
             if (dcRef.current) dcRef.current.close();
         }
-    }, [mode]);
+    }, []);
 
     const startSession = async () => {
         try {
@@ -153,19 +151,12 @@ function AssessmentContent() {
                                 content: `\n\n🔧 *Routing to ${dest === 'tutor_agent' ? 'Tutor' : 'Examiner'}...*\n`
                             }]);
 
-                            let newInstructions = "";
-                            if (dest === "tutor_agent") {
-                                newInstructions = buildTutorPrompt({
-                                    topic: assignmentData?.topic || "Lists and Tuples"
-                                });
-                            } else {
-                                newInstructions = buildExaminerPrompt({
-                                    topic: assignmentData?.topic || "Lists and Tuples",
-                                    description: assignmentData?.description,
-                                    questions: assignmentData?.questions?.map((q: any) => q.prompt),
-                                    learningGoals: assignmentData?.learning_goals,
-                                });
-                            }
+                            let newInstructions = buildExaminerPrompt({
+                                topic: assignmentData?.topic || "Lists and Tuples",
+                                description: assignmentData?.description,
+                                questions: assignmentData?.questions?.map((q: any) => q.prompt),
+                                learningGoals: assignmentData?.learning_goals,
+                            });
 
                             // Hot-swap the system instructions for the new persona via WebRTC
                             dc.send(JSON.stringify({
@@ -304,7 +295,7 @@ function AssessmentContent() {
             : 0;
 
         const sessionMetrics = {
-            mode,
+            mode: 'openai',
             sessionStartTime: sessionStartTimeRef.current,
             sessionEndTime,
             sessionDurationMs,
@@ -340,14 +331,14 @@ function AssessmentContent() {
 
 
     const toggleSession = () => {
-        if (mode === 'hume') return;
-
         if (sessionStatus === "connected" || sessionStatus === "connecting") {
             endSession();
         } else {
             startSession();
         }
     };
+
+
 
     const toggleCode = () => {
         if (activeLanguage === "sql") {
@@ -357,6 +348,47 @@ function AssessmentContent() {
             setActiveCode(MOCK_CODE_SQL);
             setActiveLanguage("sql");
         }
+    };
+
+    const sendCodeToAI = () => {
+        if (sessionStatus !== "connected" || !dcRef.current) return;
+
+        const codeContext = `Here is the current code I have written in my editor:\n\`\`\`${activeLanguage}\n${activeCode}\n\`\`\``;
+
+        // Add a message item to the conversation context
+        dcRef.current.send(JSON.stringify({
+            type: "conversation.item.create",
+            item: {
+                type: "message",
+                role: "user",
+                content: [
+                    {
+                        type: "input_text",
+                        text: codeContext
+                    }
+                ]
+            }
+        }));
+
+        // Trigger the AI to respond to this context
+        dcRef.current.send(JSON.stringify({
+            type: "response.create",
+            response: { modalities: ["text", "audio"] }
+        }));
+
+        // Add to our local transcript view
+        setMessages(prev => [
+            ...prev,
+            {
+                role: 'user',
+                content: `*Sent code snippet to AI for review.*`,
+                metadata: {
+                    startTime: Date.now(),
+                    endTime: Date.now(),
+                    latency: 0
+                }
+            }
+        ]);
     };
 
     if (showThankYou) {
@@ -389,188 +421,129 @@ function AssessmentContent() {
     }
 
     return (
-        <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans transition-colors duration-300">
-            {/* Minimalist Sidebar */}
-            <aside className="hidden md:flex w-20 border-r border-border flex-col items-center py-6 gap-8 bg-muted/30 z-20 shrink-0">
-                <button onClick={() => router.push('/dashboard')} className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center text-white shadow-md shadow-primary/20 hover:scale-105 active:scale-95 transition-all">
-                    <LayoutDashboard size={22} fill="currentColor" className="opacity-80" />
-                </button>
-                <nav className="flex flex-col gap-4 mt-auto">
-                    <button className="w-12 h-12 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all">
-                        <Settings size={22} />
+        <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden font-sans transition-colors duration-300 relative">
+
+            {/* Dramatic minimal background */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-primary/10 rounded-full blur-[120px] pointer-events-none z-0" />
+
+            {/* Minimal Header */}
+            <header className="h-[72px] px-6 lg:px-12 flex items-center justify-between shrink-0 z-30 relative">
+                <div className="flex items-center gap-4">
+                    <button onClick={() => router.push('/dashboard')} className="p-2.5 rounded-full bg-background/50 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/50 backdrop-blur-sm transition-all shadow-sm">
+                        <ArrowLeft size={20} />
                     </button>
-                    <button className="w-12 h-12 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all">
-                        <User size={22} />
-                    </button>
-                </nav>
-            </aside>
-
-            {/* Main Content Area */}
-            <main className="flex-1 flex flex-col h-full z-10 relative">
-                {/* Modern Header */}
-                <header className="h-[72px] px-8 flex items-center justify-between shrink-0 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-30">
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-3">
-                            {/* Back Button (Mobile) */}
-                            <button onClick={() => router.push('/dashboard')} className="md:hidden p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors mr-2">
-                                <ArrowLeft size={20} />
-                            </button>
-                            <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-                                <Sparkles size={18} />
-                            </div>
-                            <div>
-                                <h1 className="text-lg font-extrabold tracking-tight text-foreground">{assignmentData?.topic || "Assessment"}</h1>
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold flex items-center gap-1.5 mt-0.5">
-                                    <span className="relative flex h-2 w-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                                    </span>
-                                    Live Session
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <div className="bg-background border border-border/50 shadow-sm p-1 rounded-full flex items-center justify-center hidden md:flex">
-                            <ThemeToggle />
-                        </div>
-                        <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-muted border border-border text-xs font-bold text-foreground shadow-sm">
-                            <Zap size={14} className="text-yellow-500 fill-yellow-500" />
-                            <span>100 XP</span>
-                        </div>
-
-                        <button
-                            onClick={toggleCode}
-                            className="px-5 py-2 text-xs font-bold uppercase tracking-wider border border-border rounded-full hover:bg-muted text-muted-foreground transition-all hover:text-foreground shadow-sm bg-background"
-                        >
-                            {activeLanguage === 'sql' ? 'Python' : 'SQL'}
-                        </button>
-                    </div>
-                </header>
-
-                <div className="flex-1 flex flex-col md:flex-row overflow-hidden p-6 gap-6 bg-muted/10 relative">
-
-                    {/* Subtle aesthetic backdrop */}
-                    <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] pointer-events-none z-0" />
-
-                    {/* Left Panel: Conversation */}
-                    <div className="premium-card flex-1 md:w-1/2 flex flex-col relative overflow-hidden z-10 w-full h-full">
-
-                        {/* Engine Switcher */}
-                        <div className="absolute top-0 left-0 w-full p-4 border-b border-border/50 bg-background/80 backdrop-blur-sm z-20 flex justify-center">
-                            <div className="bg-muted p-1 rounded-lg flex items-center gap-1 border border-border shadow-inner">
-                                <button
-                                    onClick={() => {
-                                        if (sessionStatus === 'disconnected') setMode('openai');
-                                    }}
-                                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mode === 'openai' ? 'bg-background text-foreground shadow-sm border border-border/50' : 'text-muted-foreground hover:text-foreground'}`}
-                                >
-                                    OpenAI Engine
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        if (sessionStatus === 'disconnected') setMode('hume');
-                                    }}
-                                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mode === 'hume' ? 'bg-background text-foreground shadow-sm border border-border/50' : 'text-muted-foreground hover:text-foreground'}`}
-                                >
-                                    Hume Engine
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto scroll-smooth p-6 pt-24 pb-32">
-                            <Transcript messages={mode === 'hume' ? messages.filter(m => m.role === 'assistant') : messages} />
-                            <div ref={messagesEndRef} />
-                        </div>
-
-                        {/* Floating Voice Control Bar */}
-                        {mode === 'openai' ? (
-                            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 p-2.5 pr-8 pl-3 rounded-full bg-background border border-border shadow-lg z-30 transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
-                                <button
-                                    onClick={toggleSession}
-                                    className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-md ${sessionStatus === 'connected'
-                                        ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-destructive/20'
-                                        : sessionStatus === 'connecting'
-                                            ? 'bg-muted text-muted-foreground cursor-wait'
-                                            : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20'
-                                        }`}
-                                >
-                                    {sessionStatus === 'connected' ? <Square size={20} fill="currentColor" /> : <Mic size={24} />}
-                                </button>
-
-                                <div className="flex flex-col">
-                                    <span className={`text-[15px] font-extrabold tracking-tight ${sessionStatus === 'connected' ? 'text-foreground' : 'text-muted-foreground'}`}>
-                                        {sessionStatus === 'connected' ? 'Listening...' : sessionStatus === 'connecting' ? 'Connecting...' : 'Start Assessment'}
-                                    </span>
-                                    {sessionStatus === 'connected' && (
-                                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1.5">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
-                                            Recording Active
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
+                    <div>
+                        <h1 className="text-xl font-extrabold tracking-tight text-foreground">{assignmentData?.topic || "Assessment"}</h1>
+                        {sessionStatus === 'connected' ? (
+                            <p className="text-[10px] text-primary uppercase tracking-widest font-bold flex items-center gap-1.5 mt-0.5">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                                </span>
+                                Live Session Active
+                            </p>
                         ) : (
-                            <HumeVoiceWrapper
-                                onMessage={(msg) => setMessages(prev => [...prev, msg])}
-                                onStatusChange={(status) => setSessionStatus(status as any)}
-                                instructions={buildExaminerPrompt({
-                                    topic: assignmentData?.topic || "Lists and Tuples",
-                                    description: assignmentData?.description,
-                                    questions: assignmentData?.questions?.map((q: any) => q.prompt),
-                                    learningGoals: assignmentData?.learning_goals,
-                                })}
-                                onAssessmentComplete={endSession}
-                                onStart={async () => {
-                                    sessionStartTimeRef.current = Date.now();
-                                    const topic = assignmentData?.topic || "Lists and Tuples";
-                                    const assessmentRes = await fetch("/api/assessment", {
-                                        method: "POST",
-                                        body: JSON.stringify({
-                                            topic,
-                                            assignmentId: assignmentIdParam
-                                        })
-                                    });
-                                    const assessmentResData = await assessmentRes.json();
-                                    if (assessmentResData.assessmentId) {
-                                        setAssessmentId(assessmentResData.assessmentId);
-                                    } else {
-                                        console.error("Failed to create assessment:", assessmentResData.error);
-                                        alert("Failed to start assessment. Please try again.");
-                                        throw new Error("Failed to create assessment");
-                                    }
-                                }}
-                            />
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-0.5">
+                                Voice Exam
+                            </p>
                         )}
                     </div>
+                </div>
 
-                    {/* Right Panel: Code Visualization */}
-                    <div className="premium-card hidden md:flex md:w-1/2 flex-col h-full overflow-hidden z-10 p-0 border-0 bg-transparent">
-                        <div className="flex-1 rounded-2xl overflow-hidden border border-border shadow-sm">
-                            <CodePanel
-                                code={activeCode}
-                                language={activeLanguage}
-                                isEditable={true}
-                                onChange={(newCode) => setActiveCode(newCode)}
-                                className="h-full border-0"
-                            />
+                <div className="flex items-center gap-4">
+                    <div className="bg-background/50 backdrop-blur-sm border border-border/50 shadow-sm p-1 rounded-full flex items-center justify-center">
+                        <ThemeToggle />
+                    </div>
+                    <button
+                        onClick={toggleCode}
+                        className="px-5 py-2 text-xs font-bold uppercase tracking-wider border border-border/50 rounded-full hover:bg-muted text-muted-foreground transition-all hover:text-foreground shadow-sm bg-background/50 backdrop-blur-sm"
+                    >
+                        {activeLanguage === 'sql' ? 'Python' : 'SQL'}
+                    </button>
+                    <button
+                        onClick={sendCodeToAI}
+                        disabled={sessionStatus !== "connected"}
+                        className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider border rounded-full transition-all shadow-sm backdrop-blur-sm ${sessionStatus === "connected"
+                            ? "bg-primary text-primary-foreground border-primary/20 hover:bg-primary/90"
+                            : "bg-muted text-muted-foreground border-border/50 opacity-50 cursor-not-allowed"
+                            }`}
+                    >
+                        <Send size={14} /> Send Code
+                    </button>
+                </div>
+            </header>
+
+            {/* Main Content Area - Split View */}
+            <main className="flex-1 flex flex-col md:flex-row p-4 lg:p-6 gap-6 relative z-10 w-full h-full pb-24">
+
+                {/* Left Panel: Conversation */}
+                <div className="flex-1 md:w-1/2 flex flex-col relative h-full premium-card overflow-hidden">
+                    <div className="flex-1 overflow-y-auto scroll-smooth p-6 w-full h-full">
+                        <Transcript messages={messages} />
+                        <div ref={messagesEndRef} className="h-10" />
+                    </div>
+                </div>
+
+                {/* Right Panel: Code Visualization */}
+                <div className="hidden md:flex flex-1 md:w-1/2 flex-col h-full overflow-hidden premium-card p-0 border-0 bg-transparent">
+                    <div className="flex-1 rounded-2xl overflow-hidden shadow-sm h-full border border-border">
+                        <CodePanel
+                            code={activeCode}
+                            language={activeLanguage}
+                            isEditable={true}
+                            onChange={(newCode) => setActiveCode(newCode)}
+                            className="h-full border-0 rounded-2xl"
+                        />
+                    </div>
+                </div>
+
+                {/* Mobile Code View */}
+                <div className="md:hidden h-80 flex flex-col shrink-0 premium-card p-0 border-0 bg-transparent mb-6">
+                    <div className="flex-1 rounded-2xl overflow-hidden shadow-sm h-full border border-border">
+                        <CodePanel
+                            code={activeCode}
+                            language={activeLanguage}
+                            isEditable={true}
+                            onChange={(newCode) => setActiveCode(newCode)}
+                            className="h-full border-0 rounded-2xl"
+                        />
+                    </div>
+                </div>
+
+                {/* Floating Voice Control Bar - Prominent */}
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 z-40">
+                    <div className="flex items-center gap-4 p-3 pr-8 pl-3 rounded-full bg-background/80 backdrop-blur-xl border border-border/50 shadow-2xl transition-all duration-300 hover:shadow-primary/10 hover:-translate-y-1">
+                        <button
+                            onClick={toggleSession}
+                            className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-500 shadow-lg relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary ${sessionStatus === 'connected'
+                                ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-destructive/20 scale-105'
+                                : sessionStatus === 'connecting'
+                                    ? 'bg-muted text-muted-foreground cursor-wait scale-95'
+                                    : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/30 hover:scale-105'
+                                }`}
+                        >
+                            {sessionStatus === 'connected' && (
+                                <span className="absolute inset-0 rounded-full border-2 border-destructive animate-ping opacity-20" />
+                            )}
+                            {sessionStatus === 'connected' ? <Square size={24} fill="currentColor" /> : <Mic size={28} />}
+                        </button>
+
+                        <div className="flex flex-col min-w-[120px]">
+                            <span className={`text-lg font-extrabold tracking-tight ${sessionStatus === 'connected' ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                {sessionStatus === 'connected' ? 'Listening...' : sessionStatus === 'connecting' ? 'Connecting...' : 'Tap to Start'}
+                            </span>
+                            {sessionStatus === 'connected' ? (
+                                <span className="text-[11px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1.5 opacity-80">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
+                                    Recording Active
+                                </span>
+                            ) : (
+                                <span className="text-[11px] text-muted-foreground/60 font-semibold uppercase tracking-wider">
+                                    Voice AI Interface
+                                </span>
+                            )}
                         </div>
                     </div>
-
-                    {/* Mobile Code View */}
-                    <div className="md:hidden h-64 flex flex-col shrink-0 premium-card z-10 p-0 border-0 bg-transparent">
-                        <div className="flex-1 rounded-2xl overflow-hidden border border-border shadow-sm">
-                            <CodePanel
-                                code={activeCode}
-                                language={activeLanguage}
-                                isEditable={true}
-                                onChange={(newCode) => setActiveCode(newCode)}
-                                className="h-full border-0"
-                            />
-                        </div>
-                    </div>
-
                 </div>
             </main>
         </div>

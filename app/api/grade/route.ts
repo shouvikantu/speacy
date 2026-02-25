@@ -29,7 +29,7 @@ export async function POST(req: Request) {
             assessment_id: assessmentId,
             role: msg.role,
             content: msg.content,
-            metadata: msg.metadata // Save timestamps, latency, prosody
+            metadata: msg.metadata // Save timestamps, latency
         }));
 
         const { error: msgError } = await supabase.from("messages").insert(messagesToInsert);

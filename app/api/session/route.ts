@@ -15,14 +15,15 @@ export async function POST(req: Request) {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                model: "gpt-4o-realtime-preview",
+                model: "gpt-realtime-2025-08-28",
                 voice: "ash",
                 instructions: systemInstructions,
                 turn_detection: {
                     type: "server_vad",
-                    threshold: 0.7,
+                    threshold: 0.9,
                     prefix_padding_ms: 300,
-                    silence_duration_ms: 1000
+                    silence_duration_ms: 1000,
+                    create_response: true
                 },
                 tools: [
                     {

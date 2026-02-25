@@ -78,9 +78,9 @@ export default function Home() {
               <div className="w-12 h-12 rounded-2xl bg-muted border border-border flex items-center justify-center text-foreground mb-6 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                 <Mic size={24} />
               </div>
-              <h3 className="text-xl font-bold mb-3 tracking-tight text-foreground">Dual AI Engines</h3>
+              <h3 className="text-xl font-bold mb-3 tracking-tight text-foreground">Realtime Voice Interface</h3>
               <p className="text-muted-foreground text-sm leading-relaxed font-medium">
-                Seamlessly toggle between OpenAI's Realtime API for rapid logical reasoning, and Hume AI's Empathic Voice Interface for nuanced, prosody-aware interactions.
+                Seamlessly leverage OpenAI's Realtime API for rapid, conversational oral assessments.
               </p>
             </div>
 
