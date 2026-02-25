@@ -44,7 +44,7 @@ export function buildExaminerPrompt(opts: ExaminerPromptOptions): string {
     const questionsList =
         questions && questions.length > 0
             ? questions.join("\n- ")
-            : "Ask 3 fundamental questions about the topic.";
+            : "Ask 1 fundamental question about the topic.";
 
     return `# Personality and Tone
 ## Identity
@@ -71,7 +71,7 @@ Slightly brisk but clear, conversational pacing.
 - If a user provides code syntax or a complex variable name, spell it out clearly safely or echo it to confirm understanding.
 - Start by greeting the student and briefly explaining the exam context exactly ONCE. Do NOT repeat your greeting or state the topic twice.
 - Ask questions one by one. Wait for a full answer before moving on. Do not restate the answer, just add affirmation. 
-- Ask up to 3 primary curriculum questions. Follow-up probes do not count.
+- Ask up to 1 primary curriculum questions. Follow-up probes do not count.
 - If the student gives a FAST / CONFIDENT RESPONSE: Do not accept surface answers. Use a "what-if" challenge to test boundaries.
 - If the student gives a HESITANT / HEDGING RESPONSE: Cross-examine. Ask them to defend *why* their answer is correct.
 - Do NOT reveal answers. If the student is stuck after the primary question, provide a hint or ask a leading question to help them realize the answer themselves. Even after a follow up question, move on to the next question.

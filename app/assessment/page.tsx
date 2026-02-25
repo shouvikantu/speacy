@@ -46,6 +46,9 @@ function AssessmentContent() {
     const messagesRef = useRef(messages);
     const assessmentIdRef = useRef<string | null>(null);
     const sessionStartTimeRef = useRef<number>(0);
+    const endingRef = useRef(false);
+    const lastDeltaTimeRef = useRef<number>(0);
+    const endCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
         assessmentIdRef.current = assessmentId;
@@ -158,10 +161,23 @@ function AssessmentContent() {
                     if (event.type === 'response.output_item.done') {
                         const item = event.item;
                         if (item.type === 'function_call' && item.name === 'end_assessment') {
-                            // Give the AI ample time to finish its final spoken sentence before disconnecting
-                            setTimeout(() => {
-                                endSession();
-                            }, 7000);
+                            // Flag that we're ending and start polling for when audio finishes
+                            endingRef.current = true;
+                            lastDeltaTimeRef.current = Date.now();
+                            // Poll every second: once no new deltas for 5s, audio is done
+                            if (!endCheckIntervalRef.current) {
+                                endCheckIntervalRef.current = setInterval(() => {
+                                    const silenceMs = Date.now() - lastDeltaTimeRef.current;
+                                    if (silenceMs >= 5000) {
+                                        if (endCheckIntervalRef.current) {
+                                            clearInterval(endCheckIntervalRef.current);
+                                            endCheckIntervalRef.current = null;
+                                        }
+                                        // Extra 3s buffer for remaining audio in WebRTC playback
+                                        setTimeout(() => endSession(), 3000);
+                                    }
+                                }, 1000);
+                            }
                         } else if (item.type === 'function_call' && item.name === 'transferAgents') {
                             const args = JSON.parse(item.arguments || "{}");
                             const dest = args.destination_agent;
@@ -199,6 +215,8 @@ function AssessmentContent() {
                     }
 
                     if (event.type === 'response.audio_transcript.delta') {
+                        // Track when the last delta arrived (used for end-of-speech detection)
+                        lastDeltaTimeRef.current = Date.now();
                         setMessages(prev => {
                             const lastMsg = prev[prev.length - 1];
                             const now = Date.now();
@@ -244,6 +262,8 @@ function AssessmentContent() {
                             }
                         ]);
                     }
+
+
                 } catch (err) {
                     console.error("Error parsing event", err);
                 }
@@ -426,15 +446,15 @@ function AssessmentContent() {
                     </div>
 
                     <h1 className="text-4xl font-extrabold text-foreground tracking-tight mb-4">
-                        Assessment Complete
+                        Thank You!
                     </h1>
                     <p className="text-lg font-medium text-muted-foreground mb-10 leading-relaxed">
-                        Your exam has been successfully recorded. The AI is now analyzing your performance and generating a detailed feedback report.
+                        Thank you for completing the assessment. Your exam is being graded — please wait while we finish grading and redirect you to the homepage.
                     </p>
 
                     <div className="flex items-center gap-3 px-6 py-4 rounded-xl bg-muted border border-border shadow-sm">
                         <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                        <span className="text-sm font-semibold text-foreground tracking-wide">Redirecting to Dashboard...</span>
+                        <span className="text-sm font-semibold text-foreground tracking-wide">Redirecting to Homepage...</span>
                     </div>
                 </div>
             </div>
