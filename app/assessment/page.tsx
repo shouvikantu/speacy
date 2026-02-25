@@ -191,17 +191,39 @@ function AssessmentContent() {
                             // Flag that we're ending and start polling for when audio finishes
                             endingRef.current = true;
                             lastDeltaTimeRef.current = Date.now();
-                            // Poll every second: once no new deltas for 5s, audio is done
+                            // Poll every second: once no new deltas for 2s, text generation is done.
+                            // Then, calculate real-time audio playback remaining and wait that long.
                             if (!endCheckIntervalRef.current) {
                                 endCheckIntervalRef.current = setInterval(() => {
                                     const silenceMs = Date.now() - lastDeltaTimeRef.current;
-                                    if (silenceMs >= 5000) {
+                                    if (silenceMs >= 2000) {
                                         if (endCheckIntervalRef.current) {
                                             clearInterval(endCheckIntervalRef.current);
                                             endCheckIntervalRef.current = null;
                                         }
-                                        // Extra 3s buffer for remaining audio in WebRTC playback
-                                        setTimeout(() => endSession(), 3000);
+
+                                        const currentMsgs = messagesRef.current;
+                                        const lastAssistantMsg = [...currentMsgs].reverse().find(m => m.role === 'assistant');
+
+                                        let remainingWaitMs = 1000; // default safe fallback
+
+                                        if (lastAssistantMsg && lastAssistantMsg.content) {
+                                            const wordCount = lastAssistantMsg.content.split(/\s+/).filter(Boolean).length;
+                                            // Audio plays at ~2.5 words/sec.
+                                            const expectedTotalDurationMs = (wordCount / 2.5) * 1000;
+
+                                            // Calculate how much we already "waited" while the text was printing
+                                            const messageStartTime = lastAssistantMsg.metadata?.startTime || Date.now();
+                                            const elapsedMs = Date.now() - messageStartTime;
+
+                                            // Add 3.5s safety buffer for WebRTC lag
+                                            remainingWaitMs = Math.max(0, expectedTotalDurationMs - elapsedMs) + 3500;
+
+                                            // Cap to a reasonable maximum so it never hangs infinitely
+                                            remainingWaitMs = Math.min(remainingWaitMs, 20000);
+                                        }
+
+                                        setTimeout(() => endSession(), remainingWaitMs);
                                     }
                                 }, 1000);
                             }

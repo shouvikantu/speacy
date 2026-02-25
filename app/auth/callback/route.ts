@@ -24,7 +24,16 @@ export async function GET(request: Request) {
         if (!error) {
             const { data: { user } } = await supabase.auth.getUser();
             if (user?.email && !isEmailAllowed(user.email)) {
+                // Instantiate admin client to physically delete the user account and cascading profiles
+                const { createClient: createAdminClient } = await import('@supabase/supabase-js');
+                const adminAuthClient = createAdminClient(
+                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                    process.env.SUPABASE_SERVICE_ROLE_KEY!
+                );
+
+                await adminAuthClient.auth.admin.deleteUser(user.id);
                 await supabase.auth.signOut();
+
                 return NextResponse.redirect(`${origin}/login?error=unauthorized_email`);
             }
 
