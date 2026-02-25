@@ -8,12 +8,10 @@ export function EmailVerifiedToast() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const isVerified = searchParams.get("verified") === "true";
-    const [show, setShow] = useState(false);
+    const [show, setShow] = useState(isVerified);
 
     useEffect(() => {
         if (isVerified) {
-            setShow(true);
-
             // Clean up the URL by removing the ?verified=true parameter
             const newParams = new URLSearchParams(searchParams.toString());
             newParams.delete("verified");

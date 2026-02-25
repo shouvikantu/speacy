@@ -140,7 +140,7 @@ function AssessmentContent() {
             const EPHEMERAL_KEY = data.client_secret.value;
 
             // Setup audio mixer for recording both sides
-            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const audioCtx = new (window.AudioContext || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
             const destinationNode = audioCtx.createMediaStreamDestination();
 
             const pc = new RTCPeerConnection();
