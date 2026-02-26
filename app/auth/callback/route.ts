@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 // The client you created from the Server-Side Auth instructions
 import { createClient } from "@/utils/supabase/server";
 
-const ALLOWED_EMAILS = ["shouvikwu26@gmail.com"];
+const ALLOWED_EMAILS = ["shouvikwu26@gmail.com", "lpcordova@outlook.com"];
 const ALLOWED_DOMAINS = ["willamette.edu"];
 
 function isEmailAllowed(email: string): boolean {
