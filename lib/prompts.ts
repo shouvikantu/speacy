@@ -20,6 +20,8 @@ export interface ExaminerPromptOptions {
     questions?: string[];
     /** Specific learning objectives from the instructor */
     learningGoals?: string[];
+    /** Markdown context like tables, code schemas, or reference text */
+    contextMarkdown?: string;
 }
 
 // ─── Examiner Prompt ─────────────────────────────────────────────────
@@ -34,6 +36,7 @@ export function buildExaminerPrompt(opts: ExaminerPromptOptions): string {
         description = "A formative oral assessment.",
         questions,
         learningGoals,
+        contextMarkdown,
     } = opts;
 
     const goalsList =
@@ -83,6 +86,7 @@ Slightly brisk but clear, conversational pacing.
 # Context
 TOPIC: ${topic}
 DESCRIPTION: ${description}
+${contextMarkdown ? `\n# Reference Material / Exam Context\nThe student has access to the following reference material during the exam:\n\n${contextMarkdown}\n\nUse this context to inform your questions or help the student if they are stuck.` : ''}
 
 # Learning Objectives
 - ${goalsList}

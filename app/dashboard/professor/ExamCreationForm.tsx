@@ -1,19 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, X, Loader2 } from "lucide-react";
+import { Loader2, Eye, Edit3 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export default function ExamCreationForm() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    const [previewMode, setPreviewMode] = useState(false);
     const [formData, setFormData] = useState({
         title: "",
         topic: "",
-        difficulty_level: "Intermediate",
         description: "",
+        context_markdown: "",
         questions: [{ prompt: "" }],
-        learning_goals: [""]
+        learning_goals: ""
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -21,33 +24,28 @@ export default function ExamCreationForm() {
     };
 
 
-    const handleGoalChange = (index: number, value: string) => {
-        const newGoals = [...formData.learning_goals];
-        newGoals[index] = value;
-        setFormData({ ...formData, learning_goals: newGoals });
-    };
 
-    const addGoal = () => {
-        setFormData({ ...formData, learning_goals: [...formData.learning_goals, ""] });
-    };
-
-    const removeGoal = (index: number) => {
-        if (formData.learning_goals.length > 1) {
-            const newGoals = [...formData.learning_goals];
-            newGoals.splice(index, 1);
-            setFormData({ ...formData, learning_goals: newGoals });
-        }
-    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
         try {
+            // Split learning goals by newline, remove any empty lines
+            const parsedGoals = formData.learning_goals
+                .split('\n')
+                .map(goal => goal.trim())
+                .filter(goal => goal.length > 0);
+
+            const payload = {
+                ...formData,
+                learning_goals: parsedGoals
+            };
+
             const res = await fetch("/api/assignments", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(payload)
             });
 
             if (res.ok) {
@@ -55,10 +53,10 @@ export default function ExamCreationForm() {
                 setFormData({
                     title: "",
                     topic: "",
-                    difficulty_level: "Intermediate",
                     description: "",
+                    context_markdown: "",
                     questions: [{ prompt: "" }],
-                    learning_goals: [""]
+                    learning_goals: ""
                 });
                 router.refresh(); // Refresh to see new assignment in list
             } else {
@@ -87,32 +85,17 @@ export default function ExamCreationForm() {
                 />
             </div>
 
-            <div className="grid grid-cols-2 gap-5">
-                <div>
-                    <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Topic</label>
-                    <input
-                        type="text"
-                        name="topic"
-                        value={formData.topic}
-                        onChange={handleChange}
-                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all focus:shadow-sm"
-                        placeholder="e.g. Dynamic Programming"
-                        required
-                    />
-                </div>
-                <div>
-                    <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Difficulty</label>
-                    <select
-                        name="difficulty_level"
-                        value={formData.difficulty_level}
-                        onChange={handleChange}
-                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all focus:shadow-sm appearance-none"
-                    >
-                        <option value="Beginner">Beginner</option>
-                        <option value="Intermediate">Intermediate</option>
-                        <option value="Advanced">Advanced</option>
-                    </select>
-                </div>
+            <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Topic</label>
+                <input
+                    type="text"
+                    name="topic"
+                    value={formData.topic}
+                    onChange={handleChange}
+                    className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all focus:shadow-sm"
+                    placeholder="e.g. Dynamic Programming"
+                    required
+                />
             </div>
 
             <div>
@@ -126,29 +109,67 @@ export default function ExamCreationForm() {
                 />
             </div>
 
-            <div className="space-y-4">
-                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Learning Goals</label>
-                <div className="space-y-3">
-                    {formData.learning_goals.map((goal, idx) => (
-                        <div key={idx} className="flex gap-2 items-center group">
-                            <input
-                                type="text"
-                                value={goal}
-                                onChange={(e) => handleGoalChange(idx, e.target.value)}
-                                className="flex-1 bg-background border border-border/50 rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all shadow-sm group-hover:border-border"
-                                placeholder={`Learning objective ${idx + 1}`}
-                            />
-                            {formData.learning_goals.length > 1 && (
-                                <button type="button" onClick={() => removeGoal(idx)} className="text-muted-foreground hover:text-destructive p-2 rounded-lg hover:bg-destructive/10 transition-colors">
-                                    <X size={16} />
-                                </button>
-                            )}
-                        </div>
-                    ))}
+            <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                    <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                        Exam Context / Information
+                        <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-md text-[9px] normal-case">Markdown supported</span>
+                    </label>
+                    <div className="flex bg-muted p-1 rounded-lg">
+                        <button
+                            type="button"
+                            onClick={() => setPreviewMode(false)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${!previewMode ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                        >
+                            <Edit3 size={12} /> Edit
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setPreviewMode(true)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${previewMode ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                        >
+                            <Eye size={12} /> Preview
+                        </button>
+                    </div>
                 </div>
-                <button type="button" onClick={addGoal} className="text-xs font-bold text-primary hover:text-indigo-600 transition-colors flex items-center gap-1.5 mt-2 bg-primary/5 hover:bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/10">
-                    <Plus size={14} /> Add Goal
-                </button>
+
+                {previewMode ? (
+                    <div className="w-full bg-background border border-border/50 rounded-xl px-4 py-4 min-h-[8rem] max-h-64 overflow-y-auto">
+                        {formData.context_markdown ? (
+                            <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-bold prose-headings:-tracking-tight prose-a:text-primary">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {formData.context_markdown}
+                                </ReactMarkdown>
+                            </article>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-sm text-muted-foreground/50 italic">
+                                Nothing to preview yet.
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <textarea
+                        name="context_markdown"
+                        value={formData.context_markdown}
+                        onChange={handleChange}
+                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all focus:shadow-sm h-32 resize-y leading-relaxed font-mono text-[13px]"
+                        placeholder="Provide reference material, tables, or background information here..."
+                    />
+                )}
+            </div>
+
+            <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 flex items-center justify-between">
+                    <span>Learning Goals</span>
+                    <span className="text-muted-foreground/50 text-[9px] normal-case font-normal hidden sm:inline">Enter one goal per line</span>
+                </label>
+                <textarea
+                    name="learning_goals"
+                    value={formData.learning_goals}
+                    onChange={handleChange}
+                    className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all focus:shadow-sm h-32 resize-y leading-relaxed"
+                    placeholder="1. Understand recursion&#10;2. Apply dynamic programming&#10;3. Analyze time complexity"
+                />
             </div>
 
             <button

@@ -25,7 +25,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Forbidden: Professors only" }, { status: 403 });
     }
 
-    const { title, topic, description, difficulty_level, questions, learning_goals } = await req.json();
+    const { title, topic, description, questions, learning_goals, context_markdown } = await req.json();
 
     try {
         const { data, error } = await supabase
@@ -35,9 +35,9 @@ export async function POST(req: Request) {
                 title,
                 topic,
                 description,
-                difficulty_level,
                 questions,
-                learning_goals
+                learning_goals,
+                context_markdown
             })
             .select()
             .single();

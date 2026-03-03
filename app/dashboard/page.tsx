@@ -73,8 +73,6 @@ export default async function DashboardPage() {
                                                 <h4 className="font-bold text-foreground text-lg tracking-tight mb-1 group-hover:text-primary transition-colors">{assignment.title}</h4>
                                                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
                                                     <span className="bg-muted px-2 py-0.5 rounded text-foreground">{assignment.topic}</span>
-                                                    <span className="w-1 h-1 rounded-full bg-border" />
-                                                    <span>{assignment.difficulty_level}</span>
                                                 </div>
                                                 <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">{assignment.description}</p>
                                             </div>
