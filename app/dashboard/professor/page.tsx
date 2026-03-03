@@ -155,8 +155,6 @@ export default async function ProfessorDashboard() {
                                                     <h4 className="font-bold text-foreground text-lg tracking-tight mb-1">{assignment.title}</h4>
                                                     <div className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
                                                         <span className="bg-muted px-2 py-0.5 rounded text-foreground">{assignment.topic}</span>
-                                                        <span className="w-1 h-1 rounded-full bg-border" />
-                                                        <span>{assignment.difficulty_level}</span>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-4 sm:justify-end">

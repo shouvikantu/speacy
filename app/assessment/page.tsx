@@ -9,11 +9,14 @@ import { Mic, Square, ArrowLeft, CheckCircle, Sparkles, Send } from "lucide-reac
 import { createClient } from "@/utils/supabase/client";
 import { buildExaminerPrompt } from "@/lib/prompts";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface AssignmentData {
     id: string;
     topic: string;
     description?: string;
+    context_markdown?: string;
     questions?: { prompt: string }[];
     learning_goals?: string[];
 }
@@ -40,6 +43,7 @@ function AssessmentContent() {
     const [assessmentId, setAssessmentId] = useState<string | null>(null);
     const [sessionStatus, setSessionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
     const [assignmentData, setAssignmentData] = useState<AssignmentData | null>(null);
+    const [rightPanelTab, setRightPanelTab] = useState<"context" | "code">("context");
     const [showThankYou, setShowThankYou] = useState(false);
 
     const [messages, setMessages] = useState<TranscriptMessage[]>(MOCK_TRANSCRIPT);
@@ -47,8 +51,8 @@ function AssessmentContent() {
     const assessmentIdRef = useRef<string | null>(null);
     const sessionStartTimeRef = useRef<number>(0);
     const endingRef = useRef(false);
-    const lastDeltaTimeRef = useRef<number>(0);
-    const endCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const endSessionScheduledRef = useRef(false);
+    const analyserRef = useRef<AnalyserNode | null>(null);
 
     useEffect(() => {
         assessmentIdRef.current = assessmentId;
@@ -70,6 +74,9 @@ function AssessmentContent() {
 
                 if (data) {
                     setAssignmentData(data);
+                    if (!data.context_markdown) {
+                        setRightPanelTab("code");
+                    }
                 }
             }
         };
@@ -129,6 +136,7 @@ function AssessmentContent() {
                 description: assignmentData?.description,
                 questions: assignmentData?.questions?.map((q) => q.prompt),
                 learningGoals: assignmentData?.learning_goals,
+                contextMarkdown: assignmentData?.context_markdown,
             });
 
             const tokenResponse = await fetch("/api/session", {
@@ -155,6 +163,13 @@ function AssessmentContent() {
                 // Connect remote AI stream to the mixer
                 const remoteSource = audioCtx.createMediaStreamSource(e.streams[0]);
                 remoteSource.connect(destinationNode);
+
+                // Create an AnalyserNode to monitor the AI's audio level.
+                // This lets us detect when the AI has truly stopped speaking.
+                const analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 256;
+                remoteSource.connect(analyser);
+                analyserRef.current = analyser;
             };
 
             const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -188,44 +203,54 @@ function AssessmentContent() {
                     if (event.type === 'response.output_item.done') {
                         const item = event.item;
                         if (item.type === 'function_call' && item.name === 'end_assessment') {
-                            // Flag that we're ending and start polling for when audio finishes
+                            // The AI has decided the exam is over. Set flags.
                             endingRef.current = true;
-                            lastDeltaTimeRef.current = Date.now();
-                            // Poll every second: once no new deltas for 2s, text generation is done.
-                            // Then, calculate real-time audio playback remaining and wait that long.
-                            if (!endCheckIntervalRef.current) {
-                                endCheckIntervalRef.current = setInterval(() => {
-                                    const silenceMs = Date.now() - lastDeltaTimeRef.current;
-                                    if (silenceMs >= 2000) {
-                                        if (endCheckIntervalRef.current) {
-                                            clearInterval(endCheckIntervalRef.current);
-                                            endCheckIntervalRef.current = null;
+
+                            // Start monitoring actual audio output level.
+                            // Only end the session once we confirm the AI has
+                            // truly stopped producing audible sound.
+                            if (!endSessionScheduledRef.current) {
+                                endSessionScheduledRef.current = true;
+
+                                const analyser = analyserRef.current;
+                                if (analyser) {
+                                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                                    let silentSince: number | null = null;
+
+                                    const silenceCheck = setInterval(() => {
+                                        analyser.getByteTimeDomainData(dataArray);
+
+                                        // Calculate RMS volume (0-1 scale)
+                                        let sumSquares = 0;
+                                        for (let i = 0; i < dataArray.length; i++) {
+                                            const normalized = (dataArray[i] - 128) / 128;
+                                            sumSquares += normalized * normalized;
                                         }
+                                        const rms = Math.sqrt(sumSquares / dataArray.length);
 
-                                        const currentMsgs = messagesRef.current;
-                                        const lastAssistantMsg = [...currentMsgs].reverse().find(m => m.role === 'assistant');
-
-                                        let remainingWaitMs = 1000; // default safe fallback
-
-                                        if (lastAssistantMsg && lastAssistantMsg.content) {
-                                            const wordCount = lastAssistantMsg.content.split(/\s+/).filter(Boolean).length;
-                                            // Audio plays at ~2.5 words/sec.
-                                            const expectedTotalDurationMs = (wordCount / 2.5) * 1000;
-
-                                            // Calculate how much we already "waited" while the text was printing
-                                            const messageStartTime = lastAssistantMsg.metadata?.startTime || Date.now();
-                                            const elapsedMs = Date.now() - messageStartTime;
-
-                                            // Add 3.5s safety buffer for WebRTC lag
-                                            remainingWaitMs = Math.max(0, expectedTotalDurationMs - elapsedMs) + 3500;
-
-                                            // Cap to a reasonable maximum so it never hangs infinitely
-                                            remainingWaitMs = Math.min(remainingWaitMs, 20000);
+                                        // Threshold: rms < 0.01 is effectively silence
+                                        if (rms < 0.01) {
+                                            if (!silentSince) silentSince = Date.now();
+                                            // 3 seconds of sustained silence = AI finished speaking
+                                            if (Date.now() - silentSince >= 3000) {
+                                                clearInterval(silenceCheck);
+                                                endSession();
+                                            }
+                                        } else {
+                                            // Audio still playing, reset silence timer
+                                            silentSince = null;
                                         }
+                                    }, 300);
 
-                                        setTimeout(() => endSession(), remainingWaitMs);
-                                    }
-                                }, 1000);
+                                    // Safety cap: end after 45s no matter what
+                                    setTimeout(() => {
+                                        clearInterval(silenceCheck);
+                                        if (endingRef.current) endSession();
+                                    }, 45000);
+                                } else {
+                                    // Fallback if no analyser available
+                                    setTimeout(() => endSession(), 10000);
+                                }
                             }
                         } else if (item.type === 'function_call' && item.name === 'transferAgents') {
                             const args = JSON.parse(item.arguments || "{}");
@@ -241,6 +266,7 @@ function AssessmentContent() {
                                 description: assignmentData?.description,
                                 questions: assignmentData?.questions?.map((q) => q.prompt),
                                 learningGoals: assignmentData?.learning_goals,
+                                contextMarkdown: assignmentData?.context_markdown,
                             });
 
                             // Hot-swap the system instructions for the new persona via WebRTC
@@ -264,8 +290,6 @@ function AssessmentContent() {
                     }
 
                     if (event.type === 'response.audio_transcript.delta') {
-                        // Track when the last delta arrived (used for end-of-speech detection)
-                        lastDeltaTimeRef.current = Date.now();
                         setMessages(prev => {
                             const lastMsg = prev[prev.length - 1];
                             const now = Date.now();
@@ -311,6 +335,7 @@ function AssessmentContent() {
                             }
                         ]);
                     }
+
 
 
                 } catch (err) {
@@ -618,29 +643,85 @@ function AssessmentContent() {
                     </div>
                 </div>
 
-                {/* Right Panel: Code Visualization */}
-                <div className="hidden md:flex flex-1 md:w-1/2 flex-col h-full overflow-hidden premium-card p-0 border-0 bg-transparent">
-                    <div className="flex-1 rounded-2xl overflow-hidden shadow-sm h-full border border-border">
-                        <CodePanel
-                            code={activeCode}
-                            language={activeLanguage}
-                            isEditable={true}
-                            onChange={(newCode) => setActiveCode(newCode)}
-                            className="h-full border-0 rounded-2xl"
-                        />
+                {/* Right Panel: Context & Code Visualization */}
+                <div className="hidden md:flex flex-1 md:w-1/2 flex-col h-full overflow-hidden premium-card p-0 border-0 bg-transparent relative">
+                    {assignmentData?.context_markdown && (
+                        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-background/80 backdrop-blur-md border border-border/50 rounded-full p-1 flex items-center shadow-sm">
+                            <button
+                                onClick={() => setRightPanelTab('context')}
+                                className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-full transition-all ${rightPanelTab === 'context' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                                Context
+                            </button>
+                            <button
+                                onClick={() => setRightPanelTab('code')}
+                                className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-full transition-all ${rightPanelTab === 'code' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                                Code Editor
+                            </button>
+                        </div>
+                    )}
+                    <div className="flex-1 rounded-2xl overflow-hidden shadow-sm h-full border border-border bg-background relative flex flex-col">
+                        {rightPanelTab === 'context' && assignmentData?.context_markdown ? (
+                            <div className="flex-1 overflow-y-auto w-full h-full p-6 pt-16 mt-4">
+                                <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-bold prose-headings:-tracking-tight prose-a:text-primary mx-auto">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {assignmentData.context_markdown}
+                                    </ReactMarkdown>
+                                </article>
+                            </div>
+                        ) : (
+                            <div className="flex-1 w-full h-full relative">
+                                <CodePanel
+                                    code={activeCode}
+                                    language={activeLanguage}
+                                    isEditable={true}
+                                    onChange={(newCode) => setActiveCode(newCode)}
+                                    className="h-full w-full border-0 absolute inset-0"
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Mobile Code View */}
-                <div className="md:hidden h-80 flex flex-col shrink-0 premium-card p-0 border-0 bg-transparent mb-6">
-                    <div className="flex-1 rounded-2xl overflow-hidden shadow-sm h-full border border-border">
-                        <CodePanel
-                            code={activeCode}
-                            language={activeLanguage}
-                            isEditable={true}
-                            onChange={(newCode) => setActiveCode(newCode)}
-                            className="h-full border-0 rounded-2xl"
-                        />
+                {/* Mobile Tab View */}
+                <div className="md:hidden h-[400px] flex flex-col shrink-0 premium-card p-0 border-0 bg-transparent mb-6 relative">
+                    {assignmentData?.context_markdown && (
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 bg-background/80 backdrop-blur-md border border-border/50 rounded-full p-1 flex items-center shadow-sm">
+                            <button
+                                onClick={() => setRightPanelTab('context')}
+                                className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-full transition-all ${rightPanelTab === 'context' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                                Context
+                            </button>
+                            <button
+                                onClick={() => setRightPanelTab('code')}
+                                className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-full transition-all ${rightPanelTab === 'code' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                                Code
+                            </button>
+                        </div>
+                    )}
+                    <div className="flex-1 rounded-2xl overflow-hidden shadow-sm h-full border border-border bg-background relative flex flex-col">
+                        {rightPanelTab === 'context' && assignmentData?.context_markdown ? (
+                            <div className="flex-1 overflow-y-auto w-full h-full p-4 pt-16">
+                                <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-primary">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {assignmentData.context_markdown}
+                                    </ReactMarkdown>
+                                </article>
+                            </div>
+                        ) : (
+                            <div className="flex-1 w-full h-full relative">
+                                <CodePanel
+                                    code={activeCode}
+                                    language={activeLanguage}
+                                    isEditable={true}
+                                    onChange={(newCode) => setActiveCode(newCode)}
+                                    className="h-full w-full border-0 absolute inset-0"
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
 
