@@ -1,26 +1,32 @@
-import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { requireAuth, requireEnrollment, isErrorResponse } from "@/lib/rbac";
 
 export async function POST(req: Request) {
-    const supabase = await createClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const auth = await requireAuth();
+    if (isErrorResponse(auth)) return auth;
 
-    if (!user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { user, supabase, role } = auth;
+
+    if (role !== "student") {
+        return NextResponse.json({ error: "Only students can take assessments" }, { status: 403 });
     }
 
     const { topic, assignmentId } = await req.json();
+
+    // If assignment-linked, verify enrollment and active status
+    if (assignmentId) {
+        const enrollmentCheck = await requireEnrollment(assignmentId, auth);
+        if (isErrorResponse(enrollmentCheck)) return enrollmentCheck;
+    }
 
     try {
         const { data, error } = await supabase
             .from("assessments")
             .insert({
                 topic,
-                student_name: user.email, // Using email as name for now
+                student_name: user.email,
                 status: "pending",
-                assignment_id: assignmentId // Optional: link to assignment if provided
+                assignment_id: assignmentId || null,
             })
             .select()
             .single();
@@ -29,9 +35,6 @@ export async function POST(req: Request) {
             console.error("Error creating assessment:", error);
             return NextResponse.json({ error: "Failed to create assessment" }, { status: 500 });
         }
-
-        // Initial greeting message (optional, but good for history)
-        // We don't save it yet, handled by client or first chat call
 
         return NextResponse.json({ assessmentId: data.id });
     } catch (error) {

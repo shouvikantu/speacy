@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
 export function useRole() {
-    const [role, setRole] = useState<'student' | 'professor' | null>(null);
+    const [role, setRole] = useState<'student' | 'professor' | 'superuser' | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {

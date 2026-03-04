@@ -1,5 +1,5 @@
-import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { requireRole, isErrorResponse } from "@/lib/rbac";
 import OpenAI from "openai";
 import { buildGraderPrompt } from "@/lib/prompts";
 
@@ -8,35 +8,48 @@ const openai = new OpenAI({
 });
 
 export async function POST(req: Request) {
-    const supabase = await createClient();
+    const auth = await requireRole(["professor"]);
+    if (isErrorResponse(auth)) return auth;
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Verify professor role
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    if (profile?.role !== 'professor') {
-        return NextResponse.json({ error: "Forbidden: Professors only" }, { status: 403 });
-    }
-
+    const { user, supabase } = auth;
     const { assessmentId } = await req.json();
 
     if (!assessmentId) {
         return NextResponse.json({ error: "assessmentId is required" }, { status: 400 });
     }
 
+    // IDOR: Verify the assessment belongs to a course owned by this professor
+    const { data: assessment } = await supabase
+        .from("assessments")
+        .select("id, assignment_id")
+        .eq("id", assessmentId)
+        .single();
+
+    if (!assessment) {
+        return NextResponse.json({ error: "Assessment not found" }, { status: 404 });
+    }
+
+    if (assessment.assignment_id) {
+        const { data: assignment } = await supabase
+            .from("assignments")
+            .select("course_id, courses!inner(faculty_id)")
+            .eq("id", assessment.assignment_id)
+            .single();
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const courseData = assignment?.courses as any;
+        const facultyId = Array.isArray(courseData) ? courseData[0]?.faculty_id : courseData?.faculty_id;
+
+        if (!assignment || facultyId !== user.id) {
+            return NextResponse.json(
+                { error: "Forbidden: this assessment is not in your course" },
+                { status: 403 }
+            );
+        }
+    }
+
     try {
-        // Fetch existing messages for this assessment
+        // Fetch existing messages
         const { data: messages, error: msgError } = await supabase
             .from("messages")
             .select("role, content, metadata")
@@ -62,10 +75,10 @@ export async function POST(req: Request) {
                 },
                 {
                     role: "user",
-                    content: JSON.stringify(messages)
-                }
+                    content: JSON.stringify(messages),
+                },
             ],
-            response_format: { type: "json_object" }
+            response_format: { type: "json_object" },
         });
 
         const gradeData = JSON.parse(completion.choices[0].message.content || "{}");
@@ -76,7 +89,7 @@ export async function POST(req: Request) {
             .update({
                 total_score: gradeData.score,
                 feedback: JSON.stringify(gradeData),
-                status: 'graded'
+                status: "graded",
             })
             .eq("id", assessmentId);
 
@@ -86,7 +99,6 @@ export async function POST(req: Request) {
         }
 
         return NextResponse.json({ success: true, grade: gradeData });
-
     } catch (error) {
         console.error("Reevaluation error:", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
