@@ -1,11 +1,14 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { Users, BookOpen, Plus, TrendingUp, Zap, FileText, UserCircle, ArrowRight } from "lucide-react";
+import { Users, BookOpen, Plus, TrendingUp, Zap, FileText, UserCircle, ArrowRight, Copy, CheckCircle, XCircle } from "lucide-react";
 import Link from "next/link";
 import LogoutButton from "@/components/LogoutButton";
 import ExamCreationForm from "./ExamCreationForm";
 import DeleteAssignmentButton from "./DeleteAssignmentButton";
+import ExamStatusToggle from "./ExamStatusToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import EnrollmentActions from "./EnrollmentActions";
+import CourseManager from "./CourseManager";
 
 export default async function ProfessorDashboard() {
     const supabase = await createClient();
@@ -25,22 +28,52 @@ export default async function ProfessorDashboard() {
         .eq('id', user.id)
         .single();
 
-    if (profile?.role !== 'professor') {
+    if (profile?.role !== 'professor' && profile?.role !== 'superuser') {
         return redirect("/dashboard");
     }
 
-    // Fetch Created Assignments
-    const { data: assignments } = await supabase
-        .from("assignments")
+    // Fetch professor's courses
+    const { data: courses } = await supabase
+        .from("courses")
         .select("*")
-        .eq("created_by", user.id)
+        .eq("faculty_id", user.id)
         .order("created_at", { ascending: false });
 
-    // Fetch Class Stats
-    const { data: allAssessments } = await supabase
-        .from("assessments")
-        .select("total_score, status, topic, student_name")
-        .order("created_at", { ascending: false });
+    const courseIds = courses?.map((c) => c.id) || [];
+
+    // Fetch assignments scoped to professor's courses
+    const { data: assignments } = courseIds.length > 0
+        ? await supabase
+            .from("assignments")
+            .select("*")
+            .in("course_id", courseIds)
+            .order("created_at", { ascending: false })
+        : { data: [] };
+
+    // Fetch assessments scoped to professor's courses
+    const { data: allAssessments } = courseIds.length > 0
+        ? await supabase
+            .from("assessments")
+            .select("total_score, status, topic, student_name, assignment_id")
+            .in("assignment_id", assignments?.map((a) => a.id) || [])
+            .order("created_at", { ascending: false })
+        : { data: [] };
+
+    // Fetch pending enrollments using service role to read student profiles
+    const { createClient: createAdminClient } = await import("@supabase/supabase-js");
+    const adminSupabase = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data: pendingEnrollments } = courseIds.length > 0
+        ? await adminSupabase
+            .from("enrollments")
+            .select("id, status, enrolled_at, course_id, user_id, profiles(email), courses(name)")
+            .in("course_id", courseIds)
+            .eq("status", "pending")
+            .order("enrolled_at", { ascending: false })
+        : { data: [] };
 
     const totalStudents = new Set(allAssessments?.map((a) => a.student_name)).size || 0;
     const totalExamsTaken = allAssessments?.length || 0;
@@ -77,7 +110,7 @@ export default async function ProfessorDashboard() {
                             Professor Dashboard
                         </h1>
                         <p className="text-muted-foreground font-medium">
-                            Manage your class, create exams, and track student performance.
+                            Manage your courses, create exams, and track student performance.
                         </p>
                     </div>
                     <div className="flex items-center gap-4">
@@ -93,13 +126,11 @@ export default async function ProfessorDashboard() {
                 </div>
 
                 {/* KPI Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div className="premium-card p-6 flex flex-col relative overflow-hidden group">
                         <div className="flex items-center gap-4 mb-4 text-muted-foreground group-hover:text-primary transition-colors">
                             <TrendingUp size={24} />
-                            <div>
-                                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest leading-none">Class Average</p>
-                            </div>
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest leading-none">Class Average</p>
                         </div>
                         <h3 className="text-4xl font-extrabold tracking-tight text-foreground mb-4">{avgScore}%</h3>
                         <div className="w-full bg-muted h-2 rounded-full overflow-hidden mt-auto">
@@ -110,38 +141,117 @@ export default async function ProfessorDashboard() {
                     <div className="premium-card p-6 flex flex-col relative overflow-hidden group">
                         <div className="flex items-center gap-4 mb-4 text-muted-foreground group-hover:text-primary transition-colors">
                             <FileText size={24} />
-                            <div>
-                                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest leading-none">Total Exams</p>
-                            </div>
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest leading-none">Total Exams</p>
                         </div>
                         <h3 className="text-4xl font-extrabold tracking-tight text-foreground mb-2">{totalExamsTaken}</h3>
-                        <p className="text-sm font-medium text-muted-foreground mt-auto">
-                            across {allAssessments?.length || 0} assignments
-                        </p>
+                        <p className="text-sm font-medium text-muted-foreground mt-auto">across {assignments?.length || 0} assignments</p>
                     </div>
 
                     <div className="premium-card p-6 flex flex-col relative overflow-hidden group">
                         <div className="flex items-center gap-4 mb-4 text-muted-foreground group-hover:text-primary transition-colors">
-                            <Zap size={24} />
-                            <div>
-                                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest leading-none">Top Topic</p>
-                            </div>
+                            <BookOpen size={24} />
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest leading-none">Courses</p>
                         </div>
-                        <h3 className="text-2xl font-bold tracking-tight text-foreground truncate max-w-full block mb-2">
-                            {allAssessments && allAssessments.length > 0 ? allAssessments[0].topic : 'N/A'}
-                        </h3>
-                        <p className="text-sm font-medium text-muted-foreground mt-auto">Most attempted subject</p>
+                        <h3 className="text-4xl font-extrabold tracking-tight text-foreground mb-2">{courses?.length || 0}</h3>
+                        <p className="text-sm font-medium text-muted-foreground mt-auto">{courseIds.length} active</p>
+                    </div>
+
+                    <div className="premium-card p-6 flex flex-col relative overflow-hidden group">
+                        <div className="flex items-center gap-4 mb-4 text-muted-foreground group-hover:text-amber-500 transition-colors">
+                            <Zap size={24} />
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest leading-none">Pending</p>
+                        </div>
+                        <h3 className="text-4xl font-extrabold tracking-tight text-foreground mb-2">{pendingEnrollments?.length || 0}</h3>
+                        <p className="text-sm font-medium text-muted-foreground mt-auto">enrollment requests</p>
                     </div>
                 </div>
 
+                {/* Pending Enrollments */}
+                {pendingEnrollments && pendingEnrollments.length > 0 && (
+                    <div className="flex flex-col gap-4">
+                        <h2 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight pb-2 border-b border-border/50">
+                            <Zap size={20} className="text-amber-500" />
+                            Pending Enrollment Requests
+                            <span className="text-xs font-bold text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-full">{pendingEnrollments.length}</span>
+                        </h2>
+                        <div className="premium-card overflow-hidden divide-y divide-border/50">
+                            {pendingEnrollments.map((enrollment) => {
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const profileData = enrollment.profiles as any;
+                                const email = Array.isArray(profileData) ? profileData[0]?.email : profileData?.email;
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const courseData = enrollment.courses as any;
+                                const courseName = Array.isArray(courseData) ? courseData[0]?.name : courseData?.name;
+
+                                return (
+                                    <div key={enrollment.id} className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center text-amber-600 dark:text-amber-400 font-bold text-lg border border-amber-500/20">
+                                                {(email || "?").charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-foreground tracking-tight">{email || "Unknown"}</h4>
+                                                <p className="text-[13px] font-medium text-muted-foreground">
+                                                    wants to join <span className="text-foreground">{courseName || "Unknown Course"}</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <EnrollmentActions
+                                            enrollmentId={enrollment.id}
+                                            courseId={enrollment.course_id}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                    {/* Left: Assignments List */}
+                    {/* Left: Courses, Assignments, Students */}
                     <div className="flex flex-col gap-10">
+                        {/* Courses Section */}
+                        <div className="flex flex-col gap-4">
+                            <h2 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight pb-2 border-b border-border/50">
+                                <BookOpen size={20} className="text-primary" />
+                                Your Courses
+                            </h2>
+                            <div className="premium-card overflow-hidden">
+                                {courses && courses.length > 0 ? (
+                                    <div className="divide-y divide-border/50">
+                                        {courses.map((course) => (
+                                            <div key={course.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/30 transition-colors">
+                                                <div>
+                                                    <h4 className="font-bold text-foreground tracking-tight mb-1">{course.name}</h4>
+                                                    <div className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
+                                                        <span className="font-mono bg-muted px-2 py-0.5 rounded text-foreground text-xs">{course.join_code}</span>
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${course.joining_enabled
+                                                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                                            : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+                                                            }`}>
+                                                            {course.joining_enabled ? 'Open' : 'Closed'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="p-12 text-center text-muted-foreground font-medium flex flex-col items-center justify-center">
+                                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                                            <BookOpen size={20} className="text-muted-foreground" />
+                                        </div>
+                                        <p>No courses created yet. Create one from the right panel.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
                         {/* Assignments Section */}
                         <div className="flex flex-col gap-4">
                             <div className="flex items-center justify-between pb-2 border-b border-border/50">
                                 <h2 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight">
-                                    <BookOpen size={20} className="text-primary" />
+                                    <FileText size={20} className="text-primary" />
                                     Assignments
                                 </h2>
                             </div>
@@ -153,9 +263,13 @@ export default async function ProfessorDashboard() {
                                             <div key={assignment.id} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-muted/30 transition-colors gap-4 sm:gap-0">
                                                 <div>
                                                     <h4 className="font-bold text-foreground text-lg tracking-tight mb-1">{assignment.title}</h4>
-                                                    <div className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
+                                                    <div className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground mb-2">
                                                         <span className="bg-muted px-2 py-0.5 rounded text-foreground">{assignment.topic}</span>
                                                     </div>
+                                                    <ExamStatusToggle
+                                                        assignmentId={assignment.id}
+                                                        currentStatus={assignment.exam_status || "published"}
+                                                    />
                                                 </div>
                                                 <div className="flex items-center gap-4 sm:justify-end">
                                                     <div className="text-left sm:text-right">
@@ -170,7 +284,7 @@ export default async function ProfessorDashboard() {
                                 ) : (
                                     <div className="p-12 text-center text-muted-foreground font-medium flex flex-col items-center justify-center h-full">
                                         <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
-                                            <BookOpen size={20} className="text-muted-foreground" />
+                                            <FileText size={20} className="text-muted-foreground" />
                                         </div>
                                         <p>No assignments created yet.</p>
                                     </div>
@@ -233,15 +347,28 @@ export default async function ProfessorDashboard() {
                         </div>
                     </div>
 
-                    {/* Right: Create Assignment Form */}
-                    <div className="flex flex-col gap-4">
-                        <h2 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight pb-2 border-b border-border/50">
-                            <Plus size={20} className="text-primary" />
-                            Create New Exam
-                        </h2>
+                    {/* Right: Course Creation + Exam Creation Form */}
+                    <div className="flex flex-col gap-8">
+                        {/* Create Course */}
+                        <div className="flex flex-col gap-4">
+                            <h2 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight pb-2 border-b border-border/50">
+                                <Plus size={20} className="text-primary" />
+                                Create Course
+                            </h2>
+                            <div className="premium-card p-8 lg:sticky lg:top-6">
+                                <CourseManager />
+                            </div>
+                        </div>
 
-                        <div className="premium-card p-8 border-indigo-500/10 shadow-indigo-500/5 lg:sticky lg:top-6">
-                            <ExamCreationForm />
+                        {/* Create Exam */}
+                        <div className="flex flex-col gap-4">
+                            <h2 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight pb-2 border-b border-border/50">
+                                <Plus size={20} className="text-primary" />
+                                Create New Exam
+                            </h2>
+                            <div className="premium-card p-8 border-indigo-500/10 shadow-indigo-500/5">
+                                <ExamCreationForm courses={courses || []} />
+                            </div>
                         </div>
                     </div>
                 </div>

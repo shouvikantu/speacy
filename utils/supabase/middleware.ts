@@ -37,42 +37,58 @@ export async function updateSession(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser();
 
-    if (
-        !user &&
-        request.nextUrl.pathname !== "/" &&
-        !request.nextUrl.pathname.startsWith("/login") &&
-        !request.nextUrl.pathname.startsWith("/auth") &&
-        !request.nextUrl.pathname.startsWith("/verify-email") &&
-        !request.nextUrl.pathname.startsWith("/error")
-    ) {
-        // no user, potentially respond by redirecting the user to the login page
+    const pathname = request.nextUrl.pathname;
+
+    // Public routes that don't require authentication
+    const publicPaths = ["/", "/login", "/auth", "/error"];
+    const isPublicPath = publicPaths.some(
+        (p) => pathname === p || pathname.startsWith(p + "/")
+    );
+
+    if (!user && !isPublicPath) {
         const url = request.nextUrl.clone();
         url.pathname = "/login";
         return NextResponse.redirect(url);
     }
 
-    // Block student access to results pages — professors can still view grades
-    if (user && request.nextUrl.pathname.startsWith("/results")) {
+    // Role-based route gating for authenticated users
+    if (user) {
         const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', user.id)
+            .from("profiles")
+            .select("role")
+            .eq("id", user.id)
             .single();
 
-        if (profile?.role !== 'professor') {
-            const url = request.nextUrl.clone();
-            url.pathname = "/dashboard";
-            return NextResponse.redirect(url);
+        const role = profile?.role || "student";
+
+        // Admin routes → superuser only
+        if (pathname.startsWith("/dashboard/admin")) {
+            if (role !== "superuser") {
+                const url = request.nextUrl.clone();
+                url.pathname = "/dashboard";
+                return NextResponse.redirect(url);
+            }
+        }
+
+        // Professor routes → professor or superuser
+        if (pathname.startsWith("/dashboard/professor")) {
+            if (role !== "professor" && role !== "superuser") {
+                const url = request.nextUrl.clone();
+                url.pathname = "/dashboard";
+                return NextResponse.redirect(url);
+            }
+        }
+
+        // Results routes → professor or superuser only
+        if (pathname.startsWith("/results")) {
+            if (role !== "professor" && role !== "superuser") {
+                const url = request.nextUrl.clone();
+                url.pathname = "/dashboard";
+                return NextResponse.redirect(url);
+            }
         }
     }
 
-    // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
-    // creating a new response object with NextResponse.next() make sure to:
-    // 1. Pass the request in it, like so:
-    //    const myNewResponse = NextResponse.next({ request })
-    // 2. Copy over the cookies, like so:
-    //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-    // 3. Change the myNewResponse object to fit your needs, but avoid changing
-    //    the cookies!
+    // IMPORTANT: You *must* return the supabaseResponse object as it is.
     return supabaseResponse;
 }

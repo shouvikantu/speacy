@@ -6,7 +6,12 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-export default function ExamCreationForm() {
+interface Course {
+    id: string;
+    name: string;
+}
+
+export default function ExamCreationForm({ courses }: { courses: Course[] }) {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [previewMode, setPreviewMode] = useState(false);
@@ -16,22 +21,23 @@ export default function ExamCreationForm() {
         description: "",
         context_markdown: "",
         questions: [{ prompt: "" }],
-        learning_goals: ""
+        learning_goals: "",
+        course_id: courses.length > 0 ? courses[0].id : "",
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-
-
-
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent, asDraft = false) => {
         e.preventDefault();
+        if (!formData.course_id) {
+            alert("Please select a course first. Create a course if you haven't already.");
+            return;
+        }
         setLoading(true);
 
         try {
-            // Split learning goals by newline, remove any empty lines
             const parsedGoals = formData.learning_goals
                 .split('\n')
                 .map(goal => goal.trim())
@@ -39,7 +45,8 @@ export default function ExamCreationForm() {
 
             const payload = {
                 ...formData,
-                learning_goals: parsedGoals
+                learning_goals: parsedGoals,
+                exam_status: asDraft ? "draft" : "published",
             };
 
             const res = await fetch("/api/assignments", {
@@ -49,16 +56,17 @@ export default function ExamCreationForm() {
             });
 
             if (res.ok) {
-                alert("Exam created successfully!");
+                alert(asDraft ? "Exam saved as draft!" : "Exam published successfully!");
                 setFormData({
                     title: "",
                     topic: "",
                     description: "",
                     context_markdown: "",
                     questions: [{ prompt: "" }],
-                    learning_goals: ""
+                    learning_goals: "",
+                    course_id: courses.length > 0 ? courses[0].id : "",
                 });
-                router.refresh(); // Refresh to see new assignment in list
+                router.refresh();
             } else {
                 alert("Failed to create exam");
             }
@@ -71,7 +79,29 @@ export default function ExamCreationForm() {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
+            {/* Course Selector */}
+            <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Course</label>
+                {courses.length > 0 ? (
+                    <select
+                        name="course_id"
+                        value={formData.course_id}
+                        onChange={handleChange}
+                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all focus:shadow-sm"
+                        required
+                    >
+                        {courses.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                    </select>
+                ) : (
+                    <p className="text-sm text-muted-foreground bg-muted/50 rounded-xl p-3 border border-border/50">
+                        No courses yet. Create a course first using the form above.
+                    </p>
+                )}
+            </div>
+
             <div>
                 <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Exam Title</label>
                 <input
@@ -168,17 +198,27 @@ export default function ExamCreationForm() {
                     value={formData.learning_goals}
                     onChange={handleChange}
                     className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all focus:shadow-sm h-32 resize-y leading-relaxed"
-                    placeholder="1. Understand recursion&#10;2. Apply dynamic programming&#10;3. Analyze time complexity"
+                    placeholder={"1. Understand recursion\n2. Apply dynamic programming\n3. Analyze time complexity"}
                 />
             </div>
 
-            <button
-                type="submit"
-                disabled={loading}
-                className="w-full mt-6 bg-gradient-to-r from-primary to-indigo-600 hover:from-indigo-600 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 active:scale-[0.98] shadow-md shadow-primary/20 hover:shadow-lg disabled:opacity-70 disabled:pointer-events-none"
-            >
-                {loading ? <Loader2 className="animate-spin" /> : "Publish Assessment"}
-            </button>
+            <div className="flex gap-3">
+                <button
+                    type="button"
+                    onClick={(e) => handleSubmit(e as unknown as React.FormEvent, true)}
+                    disabled={loading || !formData.course_id}
+                    className="flex-1 bg-muted hover:bg-muted/80 text-foreground font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 border border-border disabled:opacity-50"
+                >
+                    Save as Draft
+                </button>
+                <button
+                    type="submit"
+                    disabled={loading || !formData.course_id}
+                    className="flex-1 bg-gradient-to-r from-primary to-indigo-600 hover:from-indigo-600 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 active:scale-[0.98] shadow-md shadow-primary/20 hover:shadow-lg disabled:opacity-70 disabled:pointer-events-none"
+                >
+                    {loading ? <Loader2 className="animate-spin" /> : "Publish Assessment"}
+                </button>
+            </div>
         </form>
     );
 }

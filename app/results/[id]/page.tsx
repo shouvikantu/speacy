@@ -14,6 +14,36 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
         .eq("id", id)
         .single();
 
+    // IDOR protection: verify access rights
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user && assessment) {
+        const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", user.id)
+            .single();
+
+        const role = profile?.role || "student";
+
+        // Students can only view their own assessments
+        if (role === "student" && assessment.student_name !== user.email) {
+            return (
+                <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
+                    <div className="text-center">
+                        <h1 className="text-4xl font-black tracking-tighter text-foreground mb-2">Access Denied</h1>
+                        <p className="text-muted-foreground mb-6">You don&apos;t have permission to view this assessment.</p>
+                        <Link href="/dashboard" className="px-6 py-3 rounded-full bg-primary text-primary-foreground font-semibold">
+                            Return Home
+                        </Link>
+                    </div>
+                </div>
+            );
+        }
+    }
+
     if (!assessment) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-background text-foreground transition-colors duration-300">
