@@ -108,6 +108,66 @@ export default async function DashboardPage() {
                             </div>
                         )}
 
+                        {/* My Courses */}
+                        {(() => {
+                            const approvedEnrollments = enrollments?.filter((e) => e.status === "approved") || [];
+                            if (approvedEnrollments.length === 0) return null;
+                            return (
+                                <div className="flex flex-col gap-4">
+                                    <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                                        <h2 className="text-xl font-bold flex items-center gap-2 text-foreground tracking-tight">
+                                            <BookOpen size={20} className="text-primary" />
+                                            My Courses
+                                            <span className="text-xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                                                {approvedEnrollments.length}
+                                            </span>
+                                        </h2>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {approvedEnrollments.map((enrollment) => {
+                                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */ }
+                                            const courseData = enrollment.courses as any;
+                                            const course = Array.isArray(courseData) ? courseData[0] : courseData;
+                                            const courseName = course?.name || "Unknown Course";
+                                            const courseDesc = course?.description || "";
+                                            const courseId = course?.id || enrollment.course_id;
+                                            const courseExamCount = availableAssignments.filter(
+                                                (a) => a.course_id === courseId
+                                            ).length;
+
+                                            return (
+                                                <div
+                                                    key={enrollment.id}
+                                                    className="premium-card p-5 flex flex-col gap-3 hover:border-primary/30 transition-colors"
+                                                >
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                                                            <BookOpen size={18} className="text-primary" />
+                                                        </div>
+                                                        {courseExamCount > 0 && (
+                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                                                {courseExamCount} exam{courseExamCount !== 1 ? "s" : ""}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="font-bold text-foreground tracking-tight">
+                                                            {courseName}
+                                                        </h3>
+                                                        {courseDesc && (
+                                                            <p className="text-[13px] text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
+                                                                {courseDesc}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         {/* Active Exams */}
                         <div className="flex flex-col gap-4">
                             <div className="flex items-center justify-between pb-2 border-b border-border/50">
