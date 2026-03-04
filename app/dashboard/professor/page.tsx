@@ -9,6 +9,7 @@ import ExamStatusToggle from "./ExamStatusToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import EnrollmentActions from "./EnrollmentActions";
 import CourseManager from "./CourseManager";
+import CourseStudentList from "./CourseStudentList";
 
 export default async function ProfessorDashboard() {
     const supabase = await createClient();
@@ -74,6 +75,28 @@ export default async function ProfessorDashboard() {
             .eq("status", "pending")
             .order("enrolled_at", { ascending: false })
         : { data: [] };
+
+    // Fetch approved enrollments per course with student emails
+    const { data: approvedEnrollments } = courseIds.length > 0
+        ? await adminSupabase
+            .from("enrollments")
+            .select("course_id, user_id, profiles(email)")
+            .in("course_id", courseIds)
+            .eq("status", "approved")
+            .order("enrolled_at", { ascending: false })
+        : { data: [] };
+
+    // Build a map: courseId -> list of enrolled student emails
+    const courseStudentsMap = new Map<string, { email: string }[]>();
+    approvedEnrollments?.forEach((enrollment) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const profileData = enrollment.profiles as any;
+        const email = Array.isArray(profileData) ? profileData[0]?.email : profileData?.email;
+        if (!email) return;
+        const list = courseStudentsMap.get(enrollment.course_id) || [];
+        list.push({ email });
+        courseStudentsMap.set(enrollment.course_id, list);
+    });
 
     const totalStudents = new Set(allAssessments?.map((a) => a.student_name)).size || 0;
     const totalExamsTaken = allAssessments?.length || 0;
@@ -219,22 +242,35 @@ export default async function ProfessorDashboard() {
                             <div className="premium-card overflow-hidden">
                                 {courses && courses.length > 0 ? (
                                     <div className="divide-y divide-border/50">
-                                        {courses.map((course) => (
-                                            <div key={course.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/30 transition-colors">
-                                                <div>
-                                                    <h4 className="font-bold text-foreground tracking-tight mb-1">{course.name}</h4>
-                                                    <div className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
-                                                        <span className="font-mono bg-muted px-2 py-0.5 rounded text-foreground text-xs">{course.join_code}</span>
-                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${course.joining_enabled
-                                                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                                                            : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
-                                                            }`}>
-                                                            {course.joining_enabled ? 'Open' : 'Closed'}
-                                                        </span>
+                                        {courses.map((course) => {
+                                            const enrolledStudents = courseStudentsMap.get(course.id) || [];
+                                            return (
+                                                <div key={course.id} className="p-5 hover:bg-muted/30 transition-colors">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <h4 className="font-bold text-foreground tracking-tight">{course.name}</h4>
+                                                                {enrolledStudents.length > 0 && (
+                                                                    <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                                                                        {enrolledStudents.length}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
+                                                                <span className="font-mono bg-muted px-2 py-0.5 rounded text-foreground text-xs">{course.join_code}</span>
+                                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${course.joining_enabled
+                                                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                                                    : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+                                                                    }`}>
+                                                                    {course.joining_enabled ? 'Open' : 'Closed'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
                                                     </div>
+                                                    <CourseStudentList students={enrolledStudents} />
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 ) : (
                                     <div className="p-12 text-center text-muted-foreground font-medium flex flex-col items-center justify-center">
