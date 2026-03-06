@@ -4,7 +4,7 @@ import { Users, BookOpen, Plus, TrendingUp, Zap, FileText, UserCircle, ArrowRigh
 import Link from "next/link";
 import LogoutButton from "@/components/LogoutButton";
 import ExamCreationForm from "./ExamCreationForm";
-import DeleteAssignmentButton from "./DeleteAssignmentButton";
+import AssignmentRow from "./AssignmentRow";
 import ExamStatusToggle from "./ExamStatusToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import EnrollmentActions from "./EnrollmentActions";
@@ -80,21 +80,21 @@ export default async function ProfessorDashboard() {
     const { data: approvedEnrollments } = courseIds.length > 0
         ? await adminSupabase
             .from("enrollments")
-            .select("course_id, user_id, profiles(email)")
+            .select("id, course_id, user_id, profiles(email)")
             .in("course_id", courseIds)
             .eq("status", "approved")
             .order("enrolled_at", { ascending: false })
         : { data: [] };
 
-    // Build a map: courseId -> list of enrolled student emails
-    const courseStudentsMap = new Map<string, { email: string }[]>();
+    // Build a map: courseId -> list of enrolled student emails with enrollment IDs
+    const courseStudentsMap = new Map<string, { email: string; enrollmentId: string }[]>();
     approvedEnrollments?.forEach((enrollment) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const profileData = enrollment.profiles as any;
         const email = Array.isArray(profileData) ? profileData[0]?.email : profileData?.email;
         if (!email) return;
         const list = courseStudentsMap.get(enrollment.course_id) || [];
-        list.push({ email });
+        list.push({ email, enrollmentId: enrollment.id });
         courseStudentsMap.set(enrollment.course_id, list);
     });
 
@@ -267,7 +267,7 @@ export default async function ProfessorDashboard() {
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <CourseStudentList students={enrolledStudents} />
+                                                    <CourseStudentList students={enrolledStudents} courseId={course.id} />
                                                 </div>
                                             );
                                         })}
@@ -296,25 +296,7 @@ export default async function ProfessorDashboard() {
                                 {assignments && assignments.length > 0 ? (
                                     <div className="divide-y divide-border/50">
                                         {assignments.map((assignment) => (
-                                            <div key={assignment.id} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-muted/30 transition-colors gap-4 sm:gap-0">
-                                                <div>
-                                                    <h4 className="font-bold text-foreground text-lg tracking-tight mb-1">{assignment.title}</h4>
-                                                    <div className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground mb-2">
-                                                        <span className="bg-muted px-2 py-0.5 rounded text-foreground">{assignment.topic}</span>
-                                                    </div>
-                                                    <ExamStatusToggle
-                                                        assignmentId={assignment.id}
-                                                        currentStatus={assignment.exam_status || "published"}
-                                                    />
-                                                </div>
-                                                <div className="flex items-center gap-4 sm:justify-end">
-                                                    <div className="text-left sm:text-right">
-                                                        <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Created</span>
-                                                        <span className="text-sm font-medium text-foreground">{new Date(assignment.created_at).toLocaleDateString()}</span>
-                                                    </div>
-                                                    <DeleteAssignmentButton assignmentId={assignment.id} />
-                                                </div>
-                                            </div>
+                                            <AssignmentRow key={assignment.id} assignment={assignment} />
                                         ))}
                                     </div>
                                 ) : (

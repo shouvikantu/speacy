@@ -91,3 +91,60 @@ export async function PATCH(
 
     return NextResponse.json({ success: true });
 }
+
+export async function DELETE(
+    req: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const auth = await requireAuth();
+    if (isErrorResponse(auth)) return auth;
+
+    const { role } = auth;
+    const { id } = await params;
+
+    if (role !== "professor" && role !== "superuser") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const access = await requireCourseAccess(id, auth);
+    if (isErrorResponse(access)) return access;
+
+    const { enrollmentId } = await req.json();
+
+    if (!enrollmentId) {
+        return NextResponse.json(
+            { error: "enrollmentId is required" },
+            { status: 400 }
+        );
+    }
+
+    const adminSupabase = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Verify the enrollment belongs to this course
+    const { data: enrollment } = await adminSupabase
+        .from("enrollments")
+        .select("id")
+        .eq("id", enrollmentId)
+        .eq("course_id", id)
+        .single();
+
+    if (!enrollment) {
+        return NextResponse.json({ error: "Enrollment not found in this course" }, { status: 404 });
+    }
+
+    // Soft-delete: set status to rejected so student can re-join if needed
+    const { error } = await adminSupabase
+        .from("enrollments")
+        .update({ status: "rejected" })
+        .eq("id", enrollmentId);
+
+    if (error) {
+        console.error("Error removing enrollment:", error);
+        return NextResponse.json({ error: "Failed to remove student" }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+}

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Transcript } from "@/components/Transcript";
 import { CodePanel } from "@/components/CodePanel";
-import { MOCK_TRANSCRIPT, MOCK_CODE_SQL, MOCK_CODE_PYTHON } from "@/lib/data";
+import { MOCK_TRANSCRIPT } from "@/lib/data";
 import { Mic, Square, ArrowLeft, CheckCircle, Sparkles, Send } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { buildExaminerPrompt } from "@/lib/prompts";
@@ -19,6 +19,8 @@ interface AssignmentData {
     context_markdown?: string;
     questions?: { prompt: string }[];
     learning_goals?: string[];
+    code_editor_enabled?: boolean;
+    code_editor_language?: string;
 }
 
 interface TranscriptMessage {
@@ -38,8 +40,8 @@ function AssessmentContent() {
     const assignmentIdParam = searchParams.get('assignmentId');
 
 
-    const [activeCode, setActiveCode] = useState<string>(MOCK_CODE_SQL);
-    const [activeLanguage, setActiveLanguage] = useState<string>("sql");
+    const [activeCode, setActiveCode] = useState<string>("");
+    const [activeLanguage, setActiveLanguage] = useState<string>("python");
     const [assessmentId, setAssessmentId] = useState<string | null>(null);
     const [sessionStatus, setSessionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
     const [assignmentData, setAssignmentData] = useState<AssignmentData | null>(null);
@@ -53,6 +55,7 @@ function AssessmentContent() {
     const endingRef = useRef(false);
     const endSessionScheduledRef = useRef(false);
     const analyserRef = useRef<AnalyserNode | null>(null);
+    const currentResponseIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         assessmentIdRef.current = assessmentId;
@@ -74,8 +77,12 @@ function AssessmentContent() {
 
                 if (data) {
                     setAssignmentData(data);
+                    // Set code editor language from assignment data
+                    const lang = data.code_editor_language || "python";
+                    setActiveLanguage(lang);
+                    setActiveCode("");
                     if (!data.context_markdown) {
-                        setRightPanelTab("code");
+                        setRightPanelTab(data.code_editor_enabled !== false ? "code" : "context");
                     }
                 }
             }
@@ -290,10 +297,17 @@ function AssessmentContent() {
                     }
 
                     if (event.type === 'response.audio_transcript.delta') {
+                        const responseId = event.response_id || null;
+                        const isNewResponse = responseId !== currentResponseIdRef.current;
+                        if (isNewResponse) {
+                            currentResponseIdRef.current = responseId;
+                        }
+
                         setMessages(prev => {
                             const lastMsg = prev[prev.length - 1];
                             const now = Date.now();
-                            if (lastMsg && lastMsg.role === 'assistant') {
+                            // Only append to the last message if it's the SAME response
+                            if (lastMsg && lastMsg.role === 'assistant' && !isNewResponse) {
                                 return [
                                     ...prev.slice(0, -1),
                                     {
@@ -306,6 +320,7 @@ function AssessmentContent() {
                                     }
                                 ];
                             } else {
+                                // New response = new chat bubble
                                 return [...prev, {
                                     role: 'assistant',
                                     content: event.delta,
@@ -500,13 +515,12 @@ function AssessmentContent() {
 
 
     const toggleCode = () => {
-        if (activeLanguage === "sql") {
-            setActiveCode(MOCK_CODE_PYTHON);
-            setActiveLanguage("python");
-        } else {
-            setActiveCode(MOCK_CODE_SQL);
-            setActiveLanguage("sql");
-        }
+        // Cycle through languages if code editor is enabled
+        const languages = ["python", "sql", "javascript", "java", "cpp"];
+        const currentIdx = languages.indexOf(activeLanguage);
+        const nextIdx = (currentIdx + 1) % languages.length;
+        setActiveLanguage(languages[nextIdx]);
+        setActiveCode("");
     };
 
     const sendCodeToAI = () => {
@@ -613,22 +627,26 @@ function AssessmentContent() {
                     <div className="bg-background/50 backdrop-blur-sm border border-border/50 shadow-sm p-1 rounded-full flex items-center justify-center">
                         <ThemeToggle />
                     </div>
-                    <button
-                        onClick={toggleCode}
-                        className="px-5 py-2 text-xs font-bold uppercase tracking-wider border border-border/50 rounded-full hover:bg-muted text-muted-foreground transition-all hover:text-foreground shadow-sm bg-background/50 backdrop-blur-sm"
-                    >
-                        {activeLanguage === 'sql' ? 'Python' : 'SQL'}
-                    </button>
-                    <button
-                        onClick={sendCodeToAI}
-                        disabled={sessionStatus !== "connected"}
-                        className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider border rounded-full transition-all shadow-sm backdrop-blur-sm ${sessionStatus === "connected"
-                            ? "bg-primary text-primary-foreground border-primary/20 hover:bg-primary/90"
-                            : "bg-muted text-muted-foreground border-border/50 opacity-50 cursor-not-allowed"
-                            }`}
-                    >
-                        <Send size={14} /> Send Code
-                    </button>
+                    {assignmentData?.code_editor_enabled !== false && (
+                        <>
+                            <button
+                                onClick={toggleCode}
+                                className="px-5 py-2 text-xs font-bold uppercase tracking-wider border border-border/50 rounded-full hover:bg-muted text-muted-foreground transition-all hover:text-foreground shadow-sm bg-background/50 backdrop-blur-sm"
+                            >
+                                {activeLanguage.toUpperCase()}
+                            </button>
+                            <button
+                                onClick={sendCodeToAI}
+                                disabled={sessionStatus !== "connected"}
+                                className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider border rounded-full transition-all shadow-sm backdrop-blur-sm ${sessionStatus === "connected"
+                                    ? "bg-primary text-primary-foreground border-primary/20 hover:bg-primary/90"
+                                    : "bg-muted text-muted-foreground border-border/50 opacity-50 cursor-not-allowed"
+                                    }`}
+                            >
+                                <Send size={14} /> Send Code
+                            </button>
+                        </>
+                    )}
                 </div>
             </header>
 
@@ -645,7 +663,7 @@ function AssessmentContent() {
 
                 {/* Right Panel: Context & Code Visualization */}
                 <div className="hidden md:flex flex-1 md:w-1/2 flex-col h-full overflow-hidden premium-card p-0 border-0 bg-transparent relative">
-                    {assignmentData?.context_markdown && (
+                    {assignmentData?.context_markdown && assignmentData?.code_editor_enabled !== false && (
                         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-background/80 backdrop-blur-md border border-border/50 rounded-full p-1 flex items-center shadow-sm">
                             <button
                                 onClick={() => setRightPanelTab('context')}
@@ -670,7 +688,7 @@ function AssessmentContent() {
                                     </ReactMarkdown>
                                 </article>
                             </div>
-                        ) : (
+                        ) : assignmentData?.code_editor_enabled !== false ? (
                             <div className="flex-1 w-full h-full relative">
                                 <CodePanel
                                     code={activeCode}
@@ -680,13 +698,25 @@ function AssessmentContent() {
                                     className="h-full w-full border-0 absolute inset-0"
                                 />
                             </div>
+                        ) : assignmentData?.context_markdown ? (
+                            <div className="flex-1 overflow-y-auto w-full h-full p-6">
+                                <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-bold prose-headings:-tracking-tight prose-a:text-primary mx-auto">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {assignmentData.context_markdown}
+                                    </ReactMarkdown>
+                                </article>
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm font-medium">
+                                No context or code editor for this exam.
+                            </div>
                         )}
                     </div>
                 </div>
 
                 {/* Mobile Tab View */}
                 <div className="md:hidden h-[400px] flex flex-col shrink-0 premium-card p-0 border-0 bg-transparent mb-6 relative">
-                    {assignmentData?.context_markdown && (
+                    {assignmentData?.context_markdown && assignmentData?.code_editor_enabled !== false && (
                         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 bg-background/80 backdrop-blur-md border border-border/50 rounded-full p-1 flex items-center shadow-sm">
                             <button
                                 onClick={() => setRightPanelTab('context')}
@@ -711,7 +741,7 @@ function AssessmentContent() {
                                     </ReactMarkdown>
                                 </article>
                             </div>
-                        ) : (
+                        ) : assignmentData?.code_editor_enabled !== false ? (
                             <div className="flex-1 w-full h-full relative">
                                 <CodePanel
                                     code={activeCode}
@@ -720,6 +750,18 @@ function AssessmentContent() {
                                     onChange={(newCode) => setActiveCode(newCode)}
                                     className="h-full w-full border-0 absolute inset-0"
                                 />
+                            </div>
+                        ) : assignmentData?.context_markdown ? (
+                            <div className="flex-1 overflow-y-auto w-full h-full p-4">
+                                <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-primary">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {assignmentData.context_markdown}
+                                    </ReactMarkdown>
+                                </article>
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm font-medium">
+                                No context or code editor for this exam.
                             </div>
                         )}
                     </div>
