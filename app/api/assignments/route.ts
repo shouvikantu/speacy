@@ -6,7 +6,7 @@ export async function POST(req: Request) {
     if (isErrorResponse(auth)) return auth;
 
     const { user, supabase } = auth;
-    const { title, topic, description, questions, learning_goals, context_markdown, course_id, exam_status } = await req.json();
+    const { title, topic, description, questions, learning_goals, context_markdown, course_id, exam_status, code_editor_enabled, code_editor_language } = await req.json();
 
     // Verify professor owns the course
     if (course_id) {
@@ -35,6 +35,8 @@ export async function POST(req: Request) {
                 context_markdown,
                 course_id: course_id || null,
                 exam_status: exam_status || "published",
+                code_editor_enabled: code_editor_enabled !== undefined ? code_editor_enabled : true,
+                code_editor_language: code_editor_language || "python",
             })
             .select()
             .single();

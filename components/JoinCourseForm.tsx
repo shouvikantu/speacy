@@ -29,7 +29,7 @@ export default function JoinCourseForm() {
             if (res.ok) {
                 setMessage({
                     type: "success",
-                    text: data.message || `Requested to join ${data.courseName}!`,
+                    text: data.message || `Successfully joined ${data.courseName}!`,
                 });
                 setCode("");
                 router.refresh();
@@ -63,8 +63,8 @@ export default function JoinCourseForm() {
             {message && (
                 <div
                     className={`p-3 rounded-xl text-sm font-medium border ${message.type === "success"
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                            : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                        : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
                         }`}
                 >
                     {message.text}

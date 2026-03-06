@@ -16,7 +16,7 @@ export async function POST(req: Request) {
             },
             body: JSON.stringify({
                 model: "gpt-realtime-2025-08-28",
-                voice: "ash",
+                voice: "coral",
                 instructions: systemInstructions,
                 turn_detection: {
                     type: "server_vad",

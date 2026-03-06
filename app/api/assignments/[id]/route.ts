@@ -59,6 +59,8 @@ export async function PATCH(
     if (body.context_markdown !== undefined) updateFields.context_markdown = body.context_markdown;
     if (body.learning_goals) updateFields.learning_goals = body.learning_goals;
     if (body.exam_status) updateFields.exam_status = body.exam_status;
+    if (body.code_editor_enabled !== undefined) updateFields.code_editor_enabled = body.code_editor_enabled;
+    if (body.code_editor_language !== undefined) updateFields.code_editor_language = body.code_editor_language;
 
     const { error } = await adminSupabase
         .from("assignments")

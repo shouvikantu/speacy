@@ -40,39 +40,39 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Your enrollment is pending approval" }, { status: 400 });
         }
         if (existing.status === "rejected") {
-            // Allow re-request after rejection
+            // Allow re-enrollment after rejection
             const { error } = await supabase
                 .from("enrollments")
-                .update({ status: "pending", enrolled_at: new Date().toISOString() })
+                .update({ status: "approved", enrolled_at: new Date().toISOString() })
                 .eq("id", existing.id);
 
             if (error) {
-                return NextResponse.json({ error: "Failed to re-request enrollment" }, { status: 500 });
+                return NextResponse.json({ error: "Failed to re-enroll" }, { status: 500 });
             }
 
             return NextResponse.json({
                 success: true,
-                message: "Enrollment re-requested. Waiting for faculty approval.",
+                message: `Successfully joined ${result.course.name}!`,
                 courseName: result.course.name,
             });
         }
     }
 
-    // Create pending enrollment
+    // Create approved enrollment (auto-admit with course code)
     const { error } = await supabase.from("enrollments").insert({
         course_id: result.course.id,
         user_id: user.id,
-        status: "pending",
+        status: "approved",
     });
 
     if (error) {
         console.error("Error creating enrollment:", error);
-        return NextResponse.json({ error: "Failed to request enrollment" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to join course" }, { status: 500 });
     }
 
     return NextResponse.json({
         success: true,
-        message: "Enrollment requested. Waiting for faculty approval.",
+        message: `Successfully joined ${result.course.name}!`,
         courseName: result.course.name,
     });
 }

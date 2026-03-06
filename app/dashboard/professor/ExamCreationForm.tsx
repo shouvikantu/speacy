@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Eye, Edit3 } from "lucide-react";
+import { Loader2, Eye, Edit3, Code2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -23,6 +23,8 @@ export default function ExamCreationForm({ courses }: { courses: Course[] }) {
         questions: [{ prompt: "" }],
         learning_goals: "",
         course_id: courses.length > 0 ? courses[0].id : "",
+        code_editor_enabled: true,
+        code_editor_language: "python",
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -65,6 +67,8 @@ export default function ExamCreationForm({ courses }: { courses: Course[] }) {
                     questions: [{ prompt: "" }],
                     learning_goals: "",
                     course_id: courses.length > 0 ? courses[0].id : "",
+                    code_editor_enabled: true,
+                    code_editor_language: "python",
                 });
                 router.refresh();
             } else {
@@ -200,6 +204,49 @@ export default function ExamCreationForm({ courses }: { courses: Course[] }) {
                     className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all focus:shadow-sm h-32 resize-y leading-relaxed"
                     placeholder={"1. Understand recursion\n2. Apply dynamic programming\n3. Analyze time complexity"}
                 />
+            </div>
+
+            {/* Code Editor Toggle */}
+            <div className="flex flex-col gap-3 p-4 rounded-xl bg-muted/30 border border-border/50">
+                <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                        <Code2 size={14} className="text-primary" />
+                        Code Editor
+                    </label>
+                    <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, code_editor_enabled: !formData.code_editor_enabled })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${formData.code_editor_enabled ? 'bg-primary' : 'bg-muted-foreground/30'
+                            }`}
+                    >
+                        <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${formData.code_editor_enabled ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                        />
+                    </button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                    {formData.code_editor_enabled
+                        ? "Students will see a code editor during the exam."
+                        : "Code editor will be hidden during the exam."}
+                </p>
+                {formData.code_editor_enabled && (
+                    <div>
+                        <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Language</label>
+                        <select
+                            name="code_editor_language"
+                            value={formData.code_editor_language}
+                            onChange={handleChange}
+                            className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                        >
+                            <option value="python">Python</option>
+                            <option value="sql">SQL</option>
+                            <option value="javascript">JavaScript</option>
+                            <option value="java">Java</option>
+                            <option value="cpp">C++</option>
+                        </select>
+                    </div>
+                )}
             </div>
 
             <div className="flex gap-3">
