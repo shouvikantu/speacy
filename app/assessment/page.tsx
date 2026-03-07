@@ -5,10 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Transcript } from "@/components/Transcript";
 import { CodePanel } from "@/components/CodePanel";
 import { MOCK_TRANSCRIPT } from "@/lib/data";
-import { Mic, Square, ArrowLeft, CheckCircle, Sparkles, Send } from "lucide-react";
+import { Mic, Square, ArrowLeft, CheckCircle, Sparkles, Send, AlertTriangle, Info, Clock } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { buildExaminerPrompt } from "@/lib/prompts";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import PostExamSurvey from "@/components/PostExamSurvey";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -47,6 +48,7 @@ function AssessmentContent() {
     const [assignmentData, setAssignmentData] = useState<AssignmentData | null>(null);
     const [rightPanelTab, setRightPanelTab] = useState<"context" | "code">("context");
     const [showThankYou, setShowThankYou] = useState(false);
+    const [acceptedInstructions, setAcceptedInstructions] = useState(false);
 
     const [messages, setMessages] = useState<TranscriptMessage[]>(MOCK_TRANSCRIPT);
     const messagesRef = useRef(messages);
@@ -479,28 +481,21 @@ function AssessmentContent() {
             }
         }
 
+        // Fire grading in the background — don't await, let student do the survey
         if (currentAssessmentId) {
             if (currentMessages && currentMessages.length > 0) {
-                try {
-                    await fetch("/api/grade", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            assessmentId: currentAssessmentId,
-                            messages: currentMessages,
-                            sessionMetrics,
-                            recordingUrl
-                        })
-                    });
-                } catch (e) {
-                    console.error("Error submitting grade:", e);
-                }
+                fetch("/api/grade", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        assessmentId: currentAssessmentId,
+                        messages: currentMessages,
+                        sessionMetrics,
+                        recordingUrl
+                    })
+                }).catch(e => console.error("Error submitting grade:", e));
             }
         }
-
-        setTimeout(() => {
-            router.push('/dashboard');
-        }, 3000);
     };
 
 
@@ -565,29 +560,94 @@ function AssessmentContent() {
     };
 
     if (showThankYou) {
-        return (
-            <div className="flex min-h-screen bg-background items-center justify-center font-sans transition-colors duration-300 relative overflow-hidden">
-                {/* Subtle Background Elements */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[100px] pointer-events-none -z-10" />
+        return <PostExamSurvey assessmentId={assessmentId} />;
+    }
 
-                <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-lg animate-fade-in-up">
-                    <div className="relative mb-8">
-                        <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center shadow-lg shadow-primary/20">
-                            <CheckCircle size={48} className="text-white fill-white/10" />
+    if (!acceptedInstructions) {
+        return (
+            <div className="flex min-h-screen bg-background font-sans transition-colors duration-300 relative overflow-hidden">
+                {/* Background */}
+                <div className="absolute top-0 inset-x-0 h-[400px] bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none -z-10" />
+                <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none -z-10" />
+
+                <div className="w-full max-w-2xl mx-auto px-6 py-12 flex flex-col">
+                    {/* Testing Mode Banner */}
+                    <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 mb-8">
+                        <AlertTriangle size={20} className="text-amber-500 shrink-0" />
+                        <p className="text-sm font-medium text-foreground">
+                            This system is currently in <strong>testing mode</strong>. Please be patient as we continue to work on and improve the platform. Thank you for helping us test!
+                        </p>
+                    </div>
+
+                    {/* Header */}
+                    <div className="text-center mb-10">
+                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center shadow-lg shadow-primary/20 mx-auto mb-6">
+                            <Mic size={28} className="text-white" />
+                        </div>
+                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground mb-3">
+                            {assignmentData?.topic || "Oral Exam"}
+                        </h1>
+                        <p className="text-muted-foreground font-medium">Please read the following instructions carefully before starting.</p>
+                    </div>
+
+                    {/* Instructions */}
+                    <div className="space-y-4 mb-10">
+                        <div className="flex gap-4 p-5 rounded-xl bg-primary/5 border border-primary/10">
+                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                                <Sparkles size={20} className="text-primary" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-foreground text-sm mb-1">Starting the Exam</h3>
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                    Click the <strong>Start Exam</strong> button and wait for the AI examiner to begin speaking. It may take a few seconds to connect — please be patient.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 p-5 rounded-xl bg-background border border-border/60">
+                            <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                                <Square size={18} className="text-foreground" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-foreground text-sm mb-1">Stopping the Exam Early</h3>
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                    Clicking the <strong>Stop</strong> button will immediately end the exam and begin grading. Only use this if you need to end early.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 p-5 rounded-xl bg-background border border-border/60">
+                            <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                                <Clock size={18} className="text-foreground" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-foreground text-sm mb-1">Automatic Completion</h3>
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                    When the exam is finished, the AI will <strong>automatically complete the session</strong> and take you to the next stage. You do not need to click stop. This may take a few seconds — please be patient and wait for it to transition.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 p-5 rounded-xl bg-background border border-border/60">
+                            <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                                <Info size={18} className="text-foreground" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-foreground text-sm mb-1">Tips</h3>
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                    Speak clearly and at a natural pace. The AI will ask follow-up questions based on your responses. A transcript of the conversation will appear on the left side of the screen in real time.
+                                </p>
+                            </div>
                         </div>
                     </div>
 
-                    <h1 className="text-4xl font-extrabold text-foreground tracking-tight mb-4">
-                        Thank You!
-                    </h1>
-                    <p className="text-lg font-medium text-muted-foreground mb-10 leading-relaxed">
-                        Thank you for completing the assessment. Your exam is being graded — please wait while we finish grading and redirect you to the homepage.
-                    </p>
-
-                    <div className="flex items-center gap-3 px-6 py-4 rounded-xl bg-muted border border-border shadow-sm">
-                        <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                        <span className="text-sm font-semibold text-foreground tracking-wide">Redirecting to Homepage...</span>
-                    </div>
+                    {/* Accept Button */}
+                    <button
+                        onClick={() => setAcceptedInstructions(true)}
+                        className="w-full py-4 rounded-xl bg-gradient-to-r from-primary to-indigo-600 hover:from-indigo-600 hover:to-indigo-500 text-white font-bold text-base transition-all shadow-md shadow-primary/20 hover:shadow-lg active:scale-[0.98] flex items-center justify-center gap-2"
+                    >
+                        I Understand — Continue to Exam
+                    </button>
                 </div>
             </div>
         );
