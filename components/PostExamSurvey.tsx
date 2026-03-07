@@ -183,7 +183,7 @@ export default function PostExamSurvey({ assessmentId }: PostExamSurveyProps) {
                 {/* Info callout */}
                 <div className="p-5 rounded-xl bg-primary/5 border border-primary/15 mb-10">
                     <p className="text-sm text-foreground leading-relaxed">
-                        Thank you for completing the oral exam! This short survey collects feedback on your experience. Your responses are <strong>anonymous</strong> and will be used to improve the oral exam process. Completing this survey is <strong>required</strong> to receive your extra credit.
+                        Thank you for completing the oral exam! This short survey collects feedback on your experience. Your responses will be used to improve the oral exam process. Completing this survey is <strong>required</strong> to receive your extra credit.
                     </p>
                 </div>
 
@@ -194,10 +194,10 @@ export default function PostExamSurvey({ assessmentId }: PostExamSurveyProps) {
                             key={s.id}
                             onClick={() => i <= currentSection && setCurrentSection(i)}
                             className={`flex-1 h-2 rounded-full transition-all duration-300 ${i < currentSection
-                                    ? "bg-primary"
-                                    : i === currentSection
-                                        ? "bg-primary/60"
-                                        : "bg-muted"
+                                ? "bg-primary"
+                                : i === currentSection
+                                    ? "bg-primary/60"
+                                    : "bg-muted"
                                 }`}
                         />
                     ))}
@@ -235,8 +235,8 @@ export default function PostExamSurvey({ assessmentId }: PostExamSurveyProps) {
                                         type="button"
                                         onClick={() => setLikert(q.key, value)}
                                         className={`flex-1 flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl border transition-all text-center ${responses[q.key] === value
-                                                ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20 scale-105"
-                                                : "bg-muted/30 border-border/50 text-muted-foreground hover:bg-muted hover:border-border"
+                                            ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20 scale-105"
+                                            : "bg-muted/30 border-border/50 text-muted-foreground hover:bg-muted hover:border-border"
                                             }`}
                                     >
                                         <span className="text-lg font-bold">{value}</span>
