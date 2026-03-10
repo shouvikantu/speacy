@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Calendar, TrendingUp, FileText } from "lucide-react";
 import LogoutButton from "@/components/LogoutButton";
 import ReevaluateButton from "@/components/ReevaluateButton";
+import ViewSurveyButton from "@/components/ViewSurveyButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default async function StudentDetailPage({ params }: { params: Promise<{ email: string }> }) {
@@ -27,7 +28,7 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
         .eq('id', user.id)
         .single();
 
-    if (profile?.role !== 'professor') {
+    if (profile?.role !== 'professor' && profile?.role !== 'superuser') {
         return redirect("/dashboard");
     }
 
@@ -37,6 +38,21 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
         .select("*")
         .eq("student_name", studentEmail)
         .order("created_at", { ascending: false });
+
+    // Fetch survey responses for these assessments
+    const assessmentIds = assessments?.map(a => a.id) || [];
+    const { createClient: createAdminClient } = await import("@supabase/supabase-js");
+    const adminSupabase = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    const { data: surveyResponses } = assessmentIds.length > 0
+        ? await adminSupabase
+            .from("survey_responses")
+            .select("assessment_id")
+            .in("assessment_id", assessmentIds)
+        : { data: [] };
+    const surveyAssessmentIds = new Set(surveyResponses?.map(s => s.assessment_id) || []);
 
     const totalExams = assessments?.length || 0;
     const gradedExams = assessments?.filter(a => a.status === 'graded' || a.status === 'completed') || [];
@@ -130,6 +146,7 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
                                             <th className="px-6 py-4 font-bold text-center">Score</th>
                                             <th className="px-6 py-4 font-bold text-center">Status</th>
                                             <th className="px-6 py-4 font-bold">Date</th>
+                                            <th className="px-6 py-4 font-bold text-center">Survey</th>
                                             <th className="px-6 py-4 font-bold text-center">Actions</th>
                                         </tr>
                                     </thead>
@@ -187,6 +204,16 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
                                                     <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                                                         <Calendar size={14} className="text-primary/70" />
                                                         {new Date(assessment.created_at).toLocaleDateString()}
+                                                    </div>
+                                                </td>
+
+                                                {/* Survey */}
+                                                <td className="px-6 py-5">
+                                                    <div className="flex justify-center">
+                                                        <ViewSurveyButton
+                                                            assessmentId={assessment.id}
+                                                            hasSurvey={surveyAssessmentIds.has(assessment.id)}
+                                                        />
                                                     </div>
                                                 </td>
 
