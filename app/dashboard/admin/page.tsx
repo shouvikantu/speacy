@@ -4,11 +4,12 @@ import { useState, useEffect, useCallback } from "react";
 import {
     Users, BookOpen, Shield, Activity, Eye,
     ChevronDown, ChevronUp, RefreshCw, FileText, Clock,
-    GraduationCap, TrendingUp, Search, ExternalLink
+    GraduationCap, TrendingUp, Search, ExternalLink, ClipboardList
 } from "lucide-react";
 import Link from "next/link";
 import LogoutButton from "@/components/LogoutButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import SurveyResponseModal from "@/components/SurveyResponseModal";
 
 interface Stats {
     users: { student: number; professor: number; superuser: number };
@@ -41,6 +42,15 @@ interface Assessment {
     } | null;
 }
 
+interface SurveyRecord {
+    id: string;
+    user_id: string;
+    assessment_id: string | null;
+    consent: string;
+    created_at: string;
+    student_email: string;
+}
+
 interface AuditLog {
     id: string;
     action: string;
@@ -56,6 +66,8 @@ export default function AdminDashboard() {
     const [users, setUsers] = useState<UserRecord[]>([]);
     const [assessments, setAssessments] = useState<Assessment[]>([]);
     const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+    const [surveys, setSurveys] = useState<SurveyRecord[]>([]);
+    const [selectedSurveyAssessmentId, setSelectedSurveyAssessmentId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [expandedSection, setExpandedSection] = useState<string>("users");
     const [updatingRole, setUpdatingRole] = useState<string | null>(null);
@@ -65,11 +77,12 @@ export default function AdminDashboard() {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const [statsRes, usersRes, assessmentsRes, logsRes] = await Promise.all([
+            const [statsRes, usersRes, assessmentsRes, logsRes, surveysRes] = await Promise.all([
                 fetch("/api/admin/stats"),
                 fetch("/api/admin/users"),
                 fetch("/api/admin/assessments?limit=100"),
                 fetch("/api/admin/audit-logs?limit=30"),
+                fetch("/api/admin/surveys"),
             ]);
 
             if (statsRes.ok) {
@@ -89,6 +102,10 @@ export default function AdminDashboard() {
             if (logsRes.ok) {
                 const data = await logsRes.json();
                 setAuditLogs(data.logs || []);
+            }
+            if (surveysRes.ok) {
+                const data = await surveysRes.json();
+                setSurveys(data.surveys || []);
             }
         } catch (error) {
             console.error("Error fetching admin data:", error);
@@ -539,6 +556,91 @@ export default function AdminDashboard() {
                         </div>
                     )}
                 </div>
+
+                {/* Survey Responses */}
+                <div className="premium-card overflow-hidden">
+                    <button
+                        onClick={() => toggleSection("surveys")}
+                        className="w-full p-6 flex items-center justify-between hover:bg-muted/30 transition-colors"
+                    >
+                        <h2 className="text-xl font-bold flex items-center gap-2 tracking-tight">
+                            <ClipboardList size={20} className="text-primary" />
+                            Survey Responses
+                            <span className="text-xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                                {surveys.length}
+                            </span>
+                        </h2>
+                        {expandedSection === "surveys" ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                    </button>
+
+                    {expandedSection === "surveys" && (
+                        <div className="border-t border-border/50 overflow-x-auto max-h-[500px] overflow-y-auto">
+                            <table className="w-full text-sm">
+                                <thead className="sticky top-0 bg-muted/50 backdrop-blur-sm z-10">
+                                    <tr className="border-b border-border/50">
+                                        <th className="text-left p-4 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Student</th>
+                                        <th className="text-left p-4 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Date</th>
+                                        <th className="text-center p-4 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Consent</th>
+                                        <th className="text-right p-4 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border/50">
+                                    {surveys.map((survey) => {
+                                        return (
+                                            <tr key={survey.id} className="hover:bg-muted/20 transition-colors">
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500/20 to-indigo-600/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-sm border border-indigo-500/20">
+                                                            {survey.student_email.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <span className="font-medium">{survey.student_email}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-muted-foreground text-xs">
+                                                    {new Date(survey.created_at).toLocaleString()}
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${survey.consent === "yes"
+                                                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                                        : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
+                                                        }`}>
+                                                        {survey.consent === "yes" ? "Yes" : "No"}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    {survey.assessment_id ? (
+                                                        <button
+                                                            onClick={() => setSelectedSurveyAssessmentId(survey.assessment_id)}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors"
+                                                        >
+                                                            <ClipboardList size={13} />
+                                                            View Answers
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">No assessment</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {surveys.length === 0 && (
+                                        <tr>
+                                            <td colSpan={4} className="p-12 text-center text-muted-foreground">No survey responses submitted yet.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+
+                {/* Survey Modal */}
+                {selectedSurveyAssessmentId && (
+                    <SurveyResponseModal
+                        assessmentId={selectedSurveyAssessmentId}
+                        onClose={() => setSelectedSurveyAssessmentId(null)}
+                    />
+                )}
 
                 {/* Audit Trail */}
                 <div className="premium-card overflow-hidden">
